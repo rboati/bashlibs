@@ -2,7 +2,7 @@
 [[ -n $BASH_IMPORT ]] && return
 
 if [[ -z $BASH_LIBRARY_PATH ]]; then
-	declare -g BASH_LIBRARY_PATH="$HOME/.local/share/bash:/usr/local/share/bash:/usr/share/bash"
+	declare -g BASH_LIBRARY_PATH="$HOME/.local/lib/bash:/usr/local/lib/bash:/usr/lib/bash"
 fi
 
 declare -gA BASH_IMPORT=( ["$(readlink -e "$0")"]='<empty>,' )
@@ -67,7 +67,7 @@ bash_import() {
 		else
 			echo "namespace \"$NS\"." 1>&2
 		fi
-	else 
+	else
 		echo "${SOURCE}${NS:+ with namespace \"$NS\"}" 1>&2
 	fi
 
