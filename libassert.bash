@@ -4,15 +4,23 @@ __NS__generate_assert_functions() {
 		__NS__assert() {
 			declare -i EXIT_CODE=$?
 			declare arg FILE FUNC LINE
-			for arg in "$@"; do
-				if ! eval "$arg"; then
+			{
+				if (( $# == 0 )); then
 					FILE="${BASH_SOURCE[1]}"
 					FUNC="${FUNCNAME[1]}"
 					LINE="${BASH_LINENO[0]}"
-					printf 'Assert: "%s" in %s() [%s:%d]\n' "$*" "$FUNC" "$FILE" "$LINE"
+					printf 'Assert: "%s" in %s() [%s:%d]\n' "Exit code != 0" "$FUNC" "$FILE" "$LINE" 1>&2
+					exit $EXIT_CODE
+				fi
+
+				if ! "$@"; then
+					FILE="${BASH_SOURCE[1]}"
+					FUNC="${FUNCNAME[1]}"
+					LINE="${BASH_LINENO[0]}"
+					printf 'Assert: "%s" in %s() [%s:%d]\n' "$*" "$FUNC" "$FILE" "$LINE" 1>&2
 					exit -1
 				fi
-			done 1>&2
+			} 1>&2
 			return $EXIT_CODE
 		}
 	else

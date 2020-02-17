@@ -1,3 +1,5 @@
+# Dependencies:
+# cat, sed
 
 [[ -n $BASH_IMPORT ]] && return
 
@@ -30,10 +32,10 @@ bash_import() {
 		__FILE__="$__DIR__/$SOURCE"
 		FOUND=1
 	else
-        # search library path
+		# search library path
 		echo -n "Importing from library path: " 1>&2
 		declare IFS=':'
-        for ITEM in $BASH_LIBRARY_PATH; do
+		for ITEM in $BASH_LIBRARY_PATH; do
 			if [[ -r $ITEM/$SOURCE ]]; then
 				__FILE__="$ITEM/$SOURCE"
 				FOUND=1
@@ -73,6 +75,14 @@ bash_import() {
 
 	BASH_IMPORT[$__FILE__]+="${NS:-<empty>},"
 	unset SOURCE ITEM FOUND NAMESPACES
-	eval "$(cat "$__FILE__" | sed "s/\<__[N]S__/${NS}/g")"
+	if [[ -n $DEBUG ]] && (( DEBUG > 0 )); then
+		local -r tmpdir="/tmp/$USER/libimport.bash/$$"
+		mkdir -p "$tmpdir"
+		cat "$__FILE__" | sed "s/\<__[N]S__/${NS}/g" > "$tmpdir/${__FILE__##*/}"
+		source "$tmpdir/${__FILE__##*/}"
+		(( $DEBUG == 1 )) && rm -rf "$tmpdir"
+	else
+		eval "$(cat "$__FILE__" | sed "s/\<__[N]S__/${NS}/g")"
+	fi
 }
 

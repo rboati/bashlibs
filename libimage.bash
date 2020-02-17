@@ -1,4 +1,9 @@
 
+# Dependencies:
+# libimport.bash
+# libcolor.bash
+# convert (imagemagik)
+
 source "$__DIR__/libimport.bash"
 bash_import "./libcolor.bash" __NS__
 
@@ -9,7 +14,6 @@ __NS__image16m() {
 	declare -i i=0 prev_col='-1' columns
 	declare rgb
 	declare col row alpha red green blue X
-	echo "__FILE__='$__FILE__'"
 
 	convert -thumbnail "$GEOMETRY" -define txt:compliance=SVG "$FILE" txt:- | {
 		while IFS=',:() ' read col row alpha red green blue X; do
@@ -56,7 +60,7 @@ __NS__image256() {
 	declare GEOMETRY="$2"
 	declare -a upper=() lower=()
 	declare -i i=0 prev_col='-1' columns
-	declare -i color 
+	declare -i color
 	declare col row alpha red green blue X
 
 	convert -thumbnail "$GEOMETRY" -define txt:compliance=SVG "$FILE" txt:- | {
