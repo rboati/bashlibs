@@ -1,7 +1,5 @@
 
 
-
-
 declare -gA __NS__TESTSUITES=()
 declare -gA __NS__TESTS=()
 
@@ -68,15 +66,6 @@ __NS__run_tests() {
 	done
 }
 
-__NS__match_declare() {
-	local A1="$(declare -p "$1")"
-	local A2="$(declare -p "$2")"
-	A1="${A1#*=}"
-	A2="${A2#*=}"
-	[[ "$A1" == "$A2" ]]
-	return $?
-}
-
 __NS__print_test_results() {
 	local SUITE_PATTERN="${1:-*}"
 	local TEST_PATTERN="${2:-*}"
@@ -125,17 +114,22 @@ __NS__test_assert() {
 
 __NS__test_assert_eval() {
 	[[ -z $TEST_EXIT_CODE ]] && return -1
-	declare arg FILE FUNC LINE
-	for arg in "$@"; do
-		if ! eval "$arg"; then
-			FILE="${BASH_SOURCE[1]}"
-			FUNC="${FUNCNAME[1]}"
-			LINE="${BASH_LINENO[0]}"
-			printf '%s: \e[31mFAIL\e[0m "%s" in %s() [%s:%d]\n' $TESTFUNC "$*" "$FUNC" "$FILE" "$LINE"
-			TEST_EXIT_CODE=1
-			exit $TEST_EXIT_CODE
-		fi
-	done
+	declare FILE FUNC LINE
+	if ! eval "$@"; then
+		FILE="${BASH_SOURCE[1]}"
+		FUNC="${FUNCNAME[1]}"
+		LINE="${BASH_LINENO[0]}"
+		printf '%s: \e[31mFAIL\e[0m "%s" in %s() [%s:%d]\n' $TESTFUNC "$*" "$FUNC" "$FILE" "$LINE"
+		TEST_EXIT_CODE=1
+		exit $TEST_EXIT_CODE
+	fi
+}
+
+__NS__match_declare() {
+	local A1="$(declare -p "$1")"
+	local A2="$(declare -p "$2")"
+	[[ "${A1#*=}" == "${A2#*=}" ]]
+	return $?
 }
 
 __NS__test_assert_match_declare() {
@@ -143,29 +137,13 @@ __NS__test_assert_match_declare() {
 	declare FILE FUNC LINE
 	local A1="$(declare -p "$1")"
 	local A2="$(declare -p "$2")"
-	A1="${A1#*=}"
-	A2="${A2#*=}"
-	if ! [[ "$A1" == "$A2" ]]; then
+	if ! [[ "${A1#*=}" == "${A2#*=}" ]]; then
 		FILE="${BASH_SOURCE[1]}"
 		FUNC="${FUNCNAME[1]}"
 		LINE="${BASH_LINENO[0]}"
-		printf '%s: \e[31mFAIL\e[0m "%s" in %s() [%s:%d]\n' $TESTFUNC "$*" "$FUNC" "$FILE" "$LINE"
+		printf '%s: \e[31mFAIL\e[0m "%s" in %s() [%s:%d]\n' $TESTFUNC "\$$1 match \$$2" "$FUNC" "$FILE" "$LINE"
 		TEST_EXIT_CODE=1
 		exit $TEST_EXIT_CODE
-
-	fi
-}
-
-__NS__test_assert_math() {
-	[[ -z $TEST_EXIT_CODE ]] && return -1
-	declare FILE FUNC LINE
-	if ! (( "$@" )); then
-		FILE="${BASH_SOURCE[1]}"
-		FUNC="${FUNCNAME[1]}"
-		LINE="${BASH_LINENO[0]}"
-		printf '%s: \e[31mFAIL\e[0m "%s" in %s() [%s:%d]\n' $TESTFUNC "$*" "$FUNC" "$FILE" "$LINE"
-		TEST_EXIT_CODE=1
-exit $TEST_EXIT_CODE
 	fi
 }
 
@@ -176,7 +154,7 @@ __NS__test_assert_eq() {
 		FILE="${BASH_SOURCE[1]}"
 		FUNC="${FUNCNAME[1]}"
 		LINE="${BASH_LINENO[0]}"
-		printf '%s: \e[31mFAIL\e[0m "%s" in %s() [%s:%d]\n' $TESTFUNC "$*" "$FUNC" "$FILE" "$LINE"
+		printf '%s: \e[31mFAIL\e[0m "%s" in %s() [%s:%d]\n' $TESTFUNC "$1 == $2" "$FUNC" "$FILE" "$LINE"
 		TEST_EXIT_CODE=1
 		exit $TEST_EXIT_CODE
 	fi
@@ -189,7 +167,7 @@ __NS__test_assert_neq() {
 		FILE="${BASH_SOURCE[1]}"
 		FUNC="${FUNCNAME[1]}"
 		LINE="${BASH_LINENO[0]}"
-		printf '%s: \e[31mFAIL\e[0m "%s" in %s() [%s:%d]\n' $TESTFUNC "$*" "$FUNC" "$FILE" "$LINE"
+		printf '%s: \e[31mFAIL\e[0m "%s" in %s() [%s:%d]\n' $TESTFUNC "$1 != $2" "$FUNC" "$FILE" "$LINE"
 		TEST_EXIT_CODE=1
 		exit $TEST_EXIT_CODE
 	fi
@@ -202,7 +180,7 @@ __NS__test_assert_lt() {
 		FILE="${BASH_SOURCE[1]}"
 		FUNC="${FUNCNAME[1]}"
 		LINE="${BASH_LINENO[0]}"
-		printf '%s: \e[31mFAIL\e[0m "%s" in %s() [%s:%d]\n' $TESTFUNC "$*" "$FUNC" "$FILE" "$LINE"
+		printf '%s: \e[31mFAIL\e[0m "%s" in %s() [%s:%d]\n' $TESTFUNC "$1 < $2" "$FUNC" "$FILE" "$LINE"
 		TEST_EXIT_CODE=1
 		exit $TEST_EXIT_CODE
 	fi
@@ -215,7 +193,7 @@ __NS__test_assert_gt() {
 		FILE="${BASH_SOURCE[1]}"
 		FUNC="${FUNCNAME[1]}"
 		LINE="${BASH_LINENO[0]}"
-		printf '%s: \e[31mFAIL\e[0m "%s" in %s() [%s:%d]\n' $TESTFUNC "$*" "$FUNC" "$FILE" "$LINE"
+		printf '%s: \e[31mFAIL\e[0m "%s" in %s() [%s:%d]\n' $TESTFUNC "$1 > $2" "$FUNC" "$FILE" "$LINE"
 		TEST_EXIT_CODE=1
 		exit $TEST_EXIT_CODE
 	fi
@@ -228,7 +206,7 @@ __NS__test_assert_le() {
 		FILE="${BASH_SOURCE[1]}"
 		FUNC="${FUNCNAME[1]}"
 		LINE="${BASH_LINENO[0]}"
-		printf '%s: \e[31mFAIL\e[0m "%s" in %s() [%s:%d]\n' $TESTFUNC "$*" "$FUNC" "$FILE" "$LINE"
+		printf '%s: \e[31mFAIL\e[0m "%s" in %s() [%s:%d]\n' $TESTFUNC "$1 <= $2" "$FUNC" "$FILE" "$LINE"
 		TEST_EXIT_CODE=1
 		exit $TEST_EXIT_CODE
 	fi
@@ -241,7 +219,7 @@ __NS__test_assert_ge() {
 		FILE="${BASH_SOURCE[1]}"
 		FUNC="${FUNCNAME[1]}"
 		LINE="${BASH_LINENO[0]}"
-		printf '%s: \e[31mFAIL\e[0m "%s" in %s() [%s:%d]\n' $TESTFUNC "$*" "$FUNC" "$FILE" "$LINE"
+		printf '%s: \e[31mFAIL\e[0m "%s" in %s() [%s:%d]\n' $TESTFUNC "$1 >= $2" "$FUNC" "$FILE" "$LINE"
 		TEST_EXIT_CODE=1
 		exit $TEST_EXIT_CODE
 	fi

@@ -450,7 +450,7 @@ __NS__image256() {
 	declare GEOMETRY="$2"
 	declare -a upper=() lower=()
 	declare -i i=0 prev_col='-1' columns
-	declare -i color 
+	declare -i color
 	declare col row alpha red green blue X
 
 	convert -thumbnail "$GEOMETRY" -define txt:compliance=SVG "$FILE" txt:- | {
@@ -515,7 +515,7 @@ __NS__demo_color256() {
 	done
 	__NS__unset_color
 	echo
-	
+
 	#let i=16
 	#for c in {1..216}; do
 	#	FG=$(__NS__contrast_color256 $i) BG=$i __NS__printf256 ' %3d ' $i
@@ -533,7 +533,7 @@ __NS__demo_color256() {
 	#		let i=i+1
 	#	fi
 	#done
-	
+
 	#let i=16
 	#for c in {1..216}; do
 	#	FG=$(__NS__contrast_color256 $i) BG=$i __NS__printf256 ' %3d ' $i
@@ -549,7 +549,7 @@ __NS__demo_color256() {
 	#		let i=i+1
 	#	fi
 	#done
-	
+
 	let i=16
 	for c in {1..216}; do
 		FG=$(__NS__contrast_color256 $i) BG=$i __NS__printf256 ' %3d ' $i
@@ -565,7 +565,7 @@ __NS__demo_color256() {
 			let i=i+1
 		fi
 	done
-	
+
 	#for i in {16..231}; do
 	#	FG=$(__NS__contrast_color256 $i) BG=$i __NS__printf256 ' %3d ' $i
 	#	if (( ( (i-15) % 36) == 0 )); then
