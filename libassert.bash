@@ -13,7 +13,7 @@ __NS__generate_assert_functions() {
 					exit $EXIT_CODE
 				fi
 
-				if ! "$@"; then
+				if ! eval "$@"; then
 					FILE="${BASH_SOURCE[1]}"
 					FUNC="${FUNCNAME[1]}"
 					LINE="${BASH_LINENO[0]}"
@@ -28,7 +28,16 @@ __NS__generate_assert_functions() {
 	fi
 }
 
+__NS__undefined_function() {
+	! declare -p -F "$1" &> /dev/null
+}
+
+__NS__undefined_var() {
+	! declare -p "$1" &> /dev/null
+}
+
 __NS__assert() { return $?; }
+
 
 __NS__generate_assert_functions
 
