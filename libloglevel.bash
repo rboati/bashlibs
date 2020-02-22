@@ -25,7 +25,7 @@ __NS__generate_log_functions() {
 	if [[ -z $__NS__LOGCOLOR ]]; then
 		declare -i __NS__LOGCOLOR=1
 	fi
-		
+
 	if [[ -z $__NS__LOGSINK ]]; then
 		declare __NS__LOGSINK='1>&2'
 	fi
@@ -38,19 +38,19 @@ __NS__generate_log_functions() {
 			COLOR='0'
 		fi
 		COLOR="\e[${COLOR}m"
-			
+
 		if (( __NS__LOGLEVEL >= LEVEL )); then
 			if (( $__NS__LOGCOLOR == 1 )); then
 				TEMPLATE_SINK=$(cat <<- EOF
-					{ 
-						while read -r MSG; do printf '%b:%b:%s\n' "${COLOR}\$__NS__LOGDOMAIN${RESET}" "${COLOR}${LEVELNAME}${RESET}" "\$MSG"; done;
+					{
+						while IFS='' read -r MSG; do printf '%b:%b:%s\n' "${COLOR}\$__NS__LOGDOMAIN${RESET}" "${COLOR}${LEVELNAME}${RESET}" "\$MSG"; done;
 					} $__NS__LOGSINK
 					EOF
 				)
 			else
 				TEMPLATE_SINK=$(cat <<- EOF
-					{ 
-						while read -r MSG; do printf '%s:%s:%s\n' "\$__NS__LOGDOMAIN" "$LEVELNAME" "\$MSG"; done;
+					{
+						while IFS='' read -r MSG; do printf '%s:%s:%s\n' "\$__NS__LOGDOMAIN" "$LEVELNAME" "\$MSG"; done;
 					} $__NS__LOGSINK
 					EOF
 				)
