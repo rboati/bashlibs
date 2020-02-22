@@ -14,12 +14,16 @@ declare -gA __NS__DEBUGGER_PROPERTIES=(
 	[stack.auto]=1
 	[watch.auto]=0
 	[color]=1
+	[color.default]='2'
+	[color.default.off]='22'
 	[color.prompt]='33'
 	[color.prompt.off]='39'
 	[color.line]='34'
 	[color.line.off]='39'
 	[color.title]='1'
 	[color.title.off]='22'
+	[color.value]='34'
+	[color.value.off]='39'
 )
 
 __NS__set_debugger_trap() {
@@ -76,7 +80,7 @@ __NS__delete_watch() {
 	unset __NS__WATCHES[$INDEX]
 }
 
-__NS__set_debugger_properties() {
+__NS__set_debugger_property() {
 	local PROP="$1"
 	local VAL="$2"
 	if [[ -z $PROP || -z ${__NS__DEBUGGER_PROPERTIES[$PROP]:+test} || -z ${VAL:+test} ]]; then
@@ -102,8 +106,8 @@ __NS__get_debugger_properties() {
 __NS__debugger_output_filter() {
 	local PROMPT_COLOR_ON='' PROMPT_COLOR_OFF=''
 	if (( ${__NS__DEBUGGER_PROPERTIES[color]} == 1 )); then
-		PROMPT_COLOR_ON="\e[${__NS__DEBUGGER_PROPERTIES[color.prompt]}m"
-		PROMPT_COLOR_OFF="\e[${__NS__DEBUGGER_PROPERTIES[color.prompt.off]:-0}m"
+		PROMPT_COLOR_ON="$(__NS__get_debugger_color prompt)"
+		PROMPT_COLOR_OFF="$(__NS__get_debugger_color_off prompt)"
 	fi
 	while IFS='' read -r MSG; do
 		printf '%bDEBUG:%b %s\n' "${PROMPT_COLOR_ON}" "${PROMPT_COLOR_OFF}" "$MSG"
@@ -145,11 +149,36 @@ __NS__list_source_code() {
 }
 
 __NS__get_debugger_color() {
-	local PROP="$1"
-	if (( ${__NS__DEBUGGER_PROPERTIES[color]} == 1 )); then
-		printf '%b' "\e[${__NS__DEBUGGER_PROPERTIES[color.${PROP}]:-0}m"
+	if (( ${__NS__DEBUGGER_PROPERTIES[color]} != 1 )); then
+		return
 	fi
+	local PROP="$1"
+	if [[ -z ${__NS__DEBUGGER_PROPERTIES[color.${PROP}]} ]]; then
+		return
+	fi
+	printf '%b' "\e[${__NS__DEBUGGER_PROPERTIES[color.${PROP}]}m"
 }
+
+__NS__get_debugger_color_off() {
+	if (( ${__NS__DEBUGGER_PROPERTIES[color]} != 1 )); then
+		return
+	fi
+	local PROP="$1"
+	if [[ -z ${__NS__DEBUGGER_PROPERTIES[color.${PROP}]} ]]; then
+		return
+	fi
+	local ansi=''
+	if [[ -z ${__NS__DEBUGGER_PROPERTIES[color.${PROP}.off]} ]]; then
+		ansi+='0;'
+	else
+		ansi+="${__NS__DEBUGGER_PROPERTIES[color.${PROP}.off]};"
+	fi
+	if [[ $PROP != default && -n ${__NS__DEBUGGER_PROPERTIES[color.default]} ]]; then
+		ansi+="${__NS__DEBUGGER_PROPERTIES[color.default]};"
+	fi
+	printf '%b' "\e[${ansi%;}m"
+}
+
 
 __NS__debugger() {
 	{
@@ -174,14 +203,15 @@ __NS__debugger() {
 
 		__NS____CALLER_LOCALS__=( $( echo "$__NS____CALLER_LOCALS__" | while IFS="=" read -r __NS____i__ x; do echo "$__NS____i__"; done) )
 		local IFS
+		__NS__get_debugger_color default
 		{
 			if [[ ${__NS__DEBUGGER_PROPERTIES[stack.auto]} == 1 ]]; then
-				printf '%bCall tree:%b\n' "$(__NS__get_debugger_color title)" "$(__NS__get_debugger_color title.off)"
+				printf '%bCall tree:%b\n' "$(__NS__get_debugger_color title)" "$(__NS__get_debugger_color_off title)"
 				__NS__call_stack 1
 			fi
 
 			if [[ ${__NS__DEBUGGER_PROPERTIES[watch.auto]} == 1 ]]; then
-				printf '%bWatches:%b\n' "$(__NS__get_debugger_color title)" "$(__NS__get_debugger_color title.off)"
+				printf '%bWatches:%b\n' "$(__NS__get_debugger_color title)" "$(__NS__get_debugger_color_off title)"
 				local -i __NS____i__
 				for __NS____i__ in "${!__NS__WATCHES[@]}"; do
 					printf '[%d] %s = %s\n' "$__NS____i__" "${__NS__WATCHES[$__NS____i__]}" "$(eval "echo ${__NS__WATCHES[$__NS____i__]}")"
@@ -190,24 +220,24 @@ __NS__debugger() {
 			fi
 
 			if [[ ${__NS__DEBUGGER_PROPERTIES[locals.auto]} == 1 ]]; then
-				printf '%bLocals:%b\n' "$(__NS__get_debugger_color title)" "$(__NS__get_debugger_color title.off)"
+				printf '%bLocals:%b\n' "$(__NS__get_debugger_color title)" "$(__NS__get_debugger_color_off title)"
 				if (( ${#__NS____CALLER_LOCALS__[@]} > 0 )); then
 					declare -p "${__NS____CALLER_LOCALS__[@]}"
 				fi
 			fi
 
 			if [[ ${__NS__DEBUGGER_PROPERTIES[list.auto]} == 1 ]]; then
-				printf '%bList:%b\n' "$(__NS__get_debugger_color title)" "$(__NS__get_debugger_color title.off)"
+				printf '%bListing %s:%b\n' "$(__NS__get_debugger_color title)" "$(caller 0 | while read -r a b c; do echo "$b() in $c";done)" "$(__NS__get_debugger_color_off title)"
 				__NS__list_source_code 1
 			fi
-		} | __NS__debugger_output_filter
+		}
 
 		local HISTFILE="$HOME/.bash_debugger"
 		local HISTCONTROL="ignorebuth:erasedups"
 		history -c
 		history -r
 		local -a __NS____REPL__
-		while read -r -e -p"$(__NS__get_debugger_color prompt)$([[ $- == *T* ]] && echo "STEP" || echo "NEXT")>$(__NS__get_debugger_color prompt.off) " -a __NS____REPL__; do
+		while read -r -e -p"$(__NS__get_debugger_color prompt)$([[ $- == *T* ]] && echo "STEP" || echo "NEXT")>$(__NS__get_debugger_color_off prompt) " -a __NS____REPL__; do
 			case "${__NS____REPL__[0]}" in
 				'\break'|'\bp')
 					if (( ${#__NS____REPL__[@]} > 1 )); then
@@ -219,7 +249,7 @@ __NS__debugger() {
 						__NS__set_breakpoint "$SOURCE:$LINE"
 						unset LINE SOURCE
 					else
-						__NS__get_breakpoint_list | __NS__debugger_output_filter
+						__NS__get_breakpoint_list
 					fi
 					history -s "${__NS____REPL__[@]}"
 					;;
@@ -228,7 +258,8 @@ __NS__debugger() {
 					__NS__STEPMODE=0
 					history -s "${__NS____REPL__[@]}"
 					history -w
-					echo "QUIT"  | __NS__debugger_output_filter
+					echo "QUIT"
+					__NS__get_debugger_color_off default
 					return $__NS____EXITCODE__
 					;;
 				'\cont')
@@ -236,7 +267,8 @@ __NS__debugger() {
 					set -o functrace
 					history -s "${__NS____REPL__[@]}"
 					history -w
-					echo "CONT"  | __NS__debugger_output_filter
+					echo "CONT"
+					__NS__get_debugger_color_off default
 					return $__NS____EXITCODE__
 					;;
 				'\exit')
@@ -245,7 +277,7 @@ __NS__debugger() {
 					exit "$@"
 					;;
 				'\list')
-					__NS__list_source_code 1 | __NS__debugger_output_filter
+					__NS__list_source_code 1
 					history -s "${__NS____REPL__[@]}"
 					;;
 				'\step')
@@ -255,7 +287,8 @@ __NS__debugger() {
 					history -w
 					{
 						[[ $- == *T* ]] && echo "STEP" || echo "NEXT"
-					} | __NS__debugger_output_filter
+					}
+					__NS__get_debugger_color_off default
 					return $__NS____EXITCODE__
 					;;
 				'\next')
@@ -265,17 +298,18 @@ __NS__debugger() {
 					history -w
 					{
 						[[ $- == *T* ]] && echo "STEP" || echo "NEXT"
-					} | __NS__debugger_output_filter
+					}
+					__NS__get_debugger_color_off default
 					return $__NS____EXITCODE__
 					;;
 				'\stack')
-					__NS__call_stack 1 | __NS__debugger_output_filter
+					__NS__call_stack 1
 					history -s "${__NS____REPL__[@]}"
 					;;
 				'\locals')
 					if (( ${#__NS____CALLER_LOCALS__[@]} > 0 )); then
 						declare -p "${__NS____CALLER_LOCALS__[@]}"
-					fi | __NS__debugger_output_filter
+					fi
 					history -s "${__NS____REPL__[@]}"
 					;;
 				'\watch')
@@ -285,7 +319,7 @@ __NS__debugger() {
 						local -i __NS____i__
 						for __NS____i__ in "${!__NS__WATCHES[@]}"; do
 							printf '[%d] %s = %s\n' "$__NS____i__" "${__NS__WATCHES[$__NS____i__]}" "$(eval "echo ${__NS__WATCHES[$__NS____i__]}")"
-						done | __NS__debugger_output_filter
+						done
 						unset __NS____i__
 					fi
 					history -s "${__NS____REPL__[@]}"
@@ -313,21 +347,21 @@ __NS__debugger() {
 							fi
 							;;
 						'')
-							echo "Missing argument" | __NS__debugger_output_filter
+							echo "Missing argument"
 							;;
 						*)
-							echo "Unknown argument: ${__NS____REPL__[1]}" | __NS__debugger_output_filter
+							echo "Unknown argument: ${__NS____REPL__[1]}"
 							;;
 					esac
 					history -s "${__NS____REPL__[@]}"
 					;;
 				'\set')
 					if [[ -z ${__NS____REPL__[1]:+test} ]]; then
-						__NS__get_debugger_properties | __NS__debugger_output_filter
+						__NS__get_debugger_properties
 					elif [[ -z ${__NS____REPL__[2]:+test} ]]; then
-						__NS__get_debugger_properties "${__NS____REPL__[1]}" | __NS__debugger_output_filter
+						__NS__get_debugger_properties "${__NS____REPL__[1]}"
 					else
-						__NS__set_debugger_properties "${__NS____REPL__[1]}" "${__NS____REPL__[2]}"
+						__NS__set_debugger_property "${__NS____REPL__[1]}" "${__NS____REPL__[2]}"
 					fi
 					history -s "${__NS____REPL__[@]}"
 					;;
@@ -335,11 +369,11 @@ __NS__debugger() {
 					history -s "${__NS____REPL__[@]}"
 					;;
 				'\'*)
-					echo "Unknown command: ${__NS____REPL__[0]}" | __NS__debugger_output_filter
+					echo "Unknown command: ${__NS____REPL__[0]}"
 					;;
 				*)
 					set -- "${__NS____CALLER_ARGS__[@]}"
-					eval "${__NS____REPL__[@]}"
+					eval "${__NS____REPL__[@]}" >&11
 					history -s "${__NS____REPL__[@]}"
 					;;
 			esac
@@ -349,9 +383,10 @@ __NS__debugger() {
 		history -w
 		{
 			[[ $- == *T* ]] && echo "STEP" || echo "NEXT"
-		} | __NS__debugger_output_filter
+		}
+		__NS__get_debugger_color_off default
 		return $__NS____EXITCODE__
-	} <&10 >&11 >&12 # set stdin, stdout, stderr
+	} 0<&10 1>&11 2>&12 # set stdin, stdout, stderr
 }
 
 exec 10<&0 11>&1 12>&2 # save stdin, stdout, stderr

@@ -1,7 +1,13 @@
 #/bin/bash
 
 source "../libimport.bash"
-bash_import "../libloglevel.bash"
+DEBUG=1 bash_import "../libloglevel.bash"
+DEBUG=1 bash_import "../libdebug.bash"
+
+
+set_breakpoint 14
+#set_debugger_property color 0
+set_debugger_trap
 
 inside_function1 () {
 	local LOGDOMAIN="function1"
@@ -27,6 +33,7 @@ declare -i LEVEL MSGLEVEL
 SUFFIXES=( "${LOGLEVELS[@],,}" )
 unset SUFFIXES[0] # OFF
 
+
 echo LOGLEVELS: ${LOGLEVELS[@]}
 for (( LEVEL=0; LEVEL < ${#LOGLEVELS[@]}; ++LEVEL )); do
 	set_loglevel $LEVEL
@@ -38,7 +45,7 @@ for (( LEVEL=0; LEVEL < ${#LOGLEVELS[@]}; ++LEVEL )); do
 		inside_function1
 		"echo$SUFFIX" "echo$SUFFIX" "outside"
 		"print$SUFFIX" "%s %s" "print$SUFFIX" "outside"
-		ls  | LOGDOMAIN=ls log$SUFFIX
+		ls | LOGDOMAIN=ls log$SUFFIX
 	done
 	echo
 done
