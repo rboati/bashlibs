@@ -101,20 +101,6 @@ __NS__test_assert() {
 		TEST_EXIT_CODE=$PREV_EXIT_CODE
 		exit $TEST_EXIT_CODE
 	fi
-	if ! "$@"; then
-		FILE="${BASH_SOURCE[1]}"
-		FUNC="${FUNCNAME[1]}"
-		LINE="${BASH_LINENO[0]}"
-		printf '%s: \e[31mFAIL\e[0m "%s" in %s() [%s:%d]\n' $TESTFUNC "$*" "$FUNC" "$FILE" "$LINE"
-		TEST_EXIT_CODE=1
-		exit $TEST_EXIT_CODE
-	fi
-}
-
-
-__NS__test_assert_eval() {
-	[[ -z $TEST_EXIT_CODE ]] && return -1
-	declare FILE FUNC LINE
 	if ! eval "$@"; then
 		FILE="${BASH_SOURCE[1]}"
 		FUNC="${FUNCNAME[1]}"
@@ -125,12 +111,22 @@ __NS__test_assert_eval() {
 	fi
 }
 
+
 __NS__match_declare() {
 	local A1="$(declare -p "$1")"
 	local A2="$(declare -p "$2")"
 	[[ "${A1#*=}" == "${A2#*=}" ]]
 	return $?
 }
+
+__NS__undefined_function() {
+	! declare -p -F "$1" &> /dev/null; then
+}
+
+__NS__undefined_var() {
+	! declare -p "$1" &> /dev/null; then
+}
+
 
 __NS__test_assert_match_declare() {
 	[[ -z $TEST_EXIT_CODE ]] && return -1
