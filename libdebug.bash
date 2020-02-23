@@ -2,7 +2,7 @@
 
 
 declare -gA __NS__BREAKPOINTS=()
-declare -ga __NS__WATCHPOINTS=()
+declare -ga __NS__DATA_BREAKPOINTS=()
 declare -ga __NS__WATCHES=()
 declare -g  __NS__STEPMODE=1
 declare -ga __NS__STEPMODE_NAMES=( CONT STEP NEXT RETURN )
@@ -75,8 +75,25 @@ __NS__get_breakpoint_list() {
 	done
 }
 
+__NS__add_data_breakpoint() {
+	local EXPR="$*"
+	__NS__DATA_BREAKPOINTS+=( "$EXPR" )
+}
+
+__NS__delete_data_breakpoint() {
+	local INDEX="$1"
+	unset __NS__DATA_BREAKPOINTS[$INDEX]
+}
+
+__NS__get_data_breakpoint_list() {
+	local -i i
+	for i in "${!__NS__DATA_BREAKPOINTS[@]}"; do
+		printf '[%d]: %s\n' "$i" "${__NS__DATA_BREAKPOINTS[$i]}"
+	done
+}
+
 __NS__add_watch() {
-	local EXPR="$@"
+	local EXPR="$*"
 	__NS__WATCHES+=( "$EXPR" )
 }
 
@@ -192,7 +209,6 @@ __NS__get_debugger_color_off() {
 	printf '%b' "\e[${ansi%;}m"
 }
 
-
 __NS__debugger() {
 	{
 		local -i __NS____EXITCODE__=$?
@@ -229,12 +245,12 @@ __NS__debugger() {
 			unset __NS____BP__
 		fi
 
-		if (( __NS____BREAK__ == 0 && ${#__NS__WATCHPOINTS[@]} != 0 )); then
+		if (( __NS____BREAK__ == 0 && ${#__NS__DATA_BREAKPOINTS[@]} != 0 )); then
 			local __NS____BP__
-			for __NS____BP__ in "${__NS__WATCHPOINTS[@]}"; do
+			for __NS____BP__ in "${__NS__DATA_BREAKPOINTS[@]}"; do
 				if eval "$__NS____BP__"; then
 					__NS____BREAK__=1
-					echo "Hit watchpoint"
+					echo "Hit data breakpoint"
 					break
 				fi
 			done
@@ -350,7 +366,7 @@ __NS__debugger() {
 						__NS__RETURN_BREAK="${#FUNCNAME[@]}"
 						break
 						;;
-					'\break'|'\bp')
+					'\breakpoint'|'\bp')
 						if (( ${#__NS____REPL__[@]} > 1 )); then
 							local -i LINE="${__NS____REPL__[1]##*:}"
 							local SOURCE="${__NS____REPL__[1]%${LINE}}"; SOURCE="${SOURCE%:}"
@@ -361,6 +377,14 @@ __NS__debugger() {
 							unset LINE SOURCE
 						else
 							__NS__get_breakpoint_list
+						fi
+						;;
+					'\databreakpoint'|'\dp')
+						if (( ${#__NS____REPL__[@]} > 1 )); then
+							__NS__add_data_breakpoint "${__NS____REPL__[@]:1}"
+						else
+							printf '%bData breakpoints:%b\n' "$(__NS__get_debugger_color title)" "$(__NS__get_debugger_color_off title)"
+							__NS__get_data_breakpoint_list
 						fi
 						;;
 					'\list')
@@ -406,6 +430,13 @@ __NS__debugger() {
 									unset __NS__BREAKPOINTS[@]
 								fi
 								;;
+							'databreakpoint'|'dp')
+								if (( ${#__NS____REPL__[@]} > 2 )); then
+									__NS__delete_data_breakpoint "${__NS____REPL__[@]:2}"
+								else
+									unset __NS__DATA_BREAKPOINTS[@]
+								fi
+								;;
 							'watch')
 								if (( ${#__NS____REPL__[@]} > 2 )); then
 									__NS__delete_watch "${__NS____REPL__[@]:2}"
@@ -431,38 +462,40 @@ __NS__debugger() {
 						fi
 						;;
 					'\help'|'\?')
-						cat <<- EOF | fmt -p "|"
-						| \help | \?
-						|     Show this help.
-						| \exit [n]
-						|     Exit program execution.
-						| \quit
-						|     Quit debugger, the program execution continues normally.
-						| \cont
-						|     Continue until next breakpoint.
-						| \step
-						|     Step into current command, if possible.
-						| \next
-						|     Execute current command and stop in the next line, if no breakpoints are hit before.
-						| \return
-						|     Return to the caller, if no breakpoints are hit before.
-						| \break | \bp  [[[sourcefile:]line] [expr]]
-						|     Set a breakpoint in file 'sourcefile' at line 'line', eventually adding an expression to be evaluated as a condition.
-						|     If no paramater is given, display breakpoint list.
-						| \list
-						|     Show source code ad current line. See \set list.context for setting context lines.
-						| \stack
-						|     Show call stack.
-						| \locals
-						|     Show arguments and locals of current function.
-						| \watch [expr]
-						|     If an expression 'expr' is given, add 'expr' to the list of watches. Otherwise show watch list.
-						| \delete breakpoint [location] | \delete bp [location]
-						|     Delete all breakpoints or the breakpoint at 'location' if given,
-						| \delete watch [n]
-						|     Delete all watches or the watch at index 'n' if given,
-						| \set [option [value]]
-						|     If no option is given show all options. If a 'value' is given set 'option' to 'value', otherwise show the value of specified option.
+						cat <<- EOF | fmt -p " "
+						\help | \?
+						    Show this help.
+						\exit [n]
+						    Exit program execution.
+						\quit
+						    Quit debugger, the program execution continues normally.
+						\cont
+						    Continue until next breakpoint.
+						\step
+						    Step into current command, if possible.
+						\next
+						    Execute current command and stop in the next line, if no breakpoints are hit before.
+						\return
+						    Return to the caller, if no breakpoints are hit before.
+						\breakpoint | \bp  [[sourcefile:]line] [expr]
+						    Set a breakpoint in file 'sourcefile' at line 'line', eventually adding an expression to be evaluated as a condition.
+						    If no paramater is given, display breakpoint list.
+						\databreakpoint | \dp  [expr]
+						    If an expression 'expr' is given, add 'expr' to the list of data breakpoints. Otherwise show data breakpoints list.
+						\list
+						    Show source code ad current line. See \set list.context for setting context lines.
+						\stack
+						    Show call stack.
+						\locals
+						    Show arguments and locals of current function.
+						\watch [expr]
+						    If an expression 'expr' is given, add 'expr' to the list of watches. Otherwise show watch list.
+						\delete breakpoint [location] | \delete bp [location]
+						    Delete all breakpoints or the breakpoint at 'location' if given,
+						\delete watch [n]
+						    Delete all watches or the watch at index 'n' if given,
+						\set [option [value]]
+						    If no option is given show all options. If a 'value' is given set 'option' to 'value', otherwise show the value of specified option.
 						EOF
 						;;
 					'\'*)

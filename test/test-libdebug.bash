@@ -1,8 +1,8 @@
 #/bin/bash
 
 source "../libimport.bash"
-DEBUG=1 bash_import "../libloglevel.bash"
-DEBUG=1 bash_import "../libdebug.bash"
+DEBUG=2 bash_import "../libloglevel.bash"
+bash_import "../libdebug.bash"
 
 
 set_breakpoint 14
