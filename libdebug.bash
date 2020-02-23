@@ -431,44 +431,38 @@ __NS__debugger() {
 						fi
 						;;
 					'\help'|'\?')
-						cat <<- EOF
-							| \help | \?
-							|     Show this help.
-							| \exit [n]
-							|     Exit program execution.
-							| \quit
-							|     Quit debugger, the program execution continues normally.
-							| \cont
-							|     Continue until next breakpoint.
-							| \step
-							|     Step into current command, if possible.
-							| \next
-							|     Execute current command and stop in the next line, if no breakpoints are
-							|     hit before.
-							| \return
-							|     Return to the caller, if no breakpoints are hit before.
-							| \break | \bp  [[[sourcefile:]line] [expr]]
-							|     Set a breakpoint in file 'sourcefile' at line 'line', eventually adding
-							|     an expression to be evaluated as a condition.
-							|     If no paramater is given, display breakpoint list.
-							| \list
-							|     Show source code ad current line. See \set list.context for setting
-							|     context lines.
-							| \stack
-							|     Show call stack.
-							| \locals
-							|     Show arguments and locals of current function.
-							| \watch [expr]
-							|     If an expression 'expr' is given, add 'expr' to the list of watches.
-							|     Otherwise show watch list.
-							| \delete breakpoint [location] | \delete bp [location]
-							|     Delete all breakpoints or the breakpoint at 'location' if given,
-							| \delete watch [n]
-							|     Delete all watches or the watch at index 'n' if given,
-							| \set [option [value]]
-							|     If no option is given show all options.
-							|     If a 'value' is given set 'option' to 'value', otherwise show the value
-							|     of specified option.
+						cat <<- EOF | fmt -p "|"
+						| \help | \?
+						|     Show this help.
+						| \exit [n]
+						|     Exit program execution.
+						| \quit
+						|     Quit debugger, the program execution continues normally.
+						| \cont
+						|     Continue until next breakpoint.
+						| \step
+						|     Step into current command, if possible.
+						| \next
+						|     Execute current command and stop in the next line, if no breakpoints are hit before.
+						| \return
+						|     Return to the caller, if no breakpoints are hit before.
+						| \break | \bp  [[[sourcefile:]line] [expr]]
+						|     Set a breakpoint in file 'sourcefile' at line 'line', eventually adding an expression to be evaluated as a condition.
+						|     If no paramater is given, display breakpoint list.
+						| \list
+						|     Show source code ad current line. See \set list.context for setting context lines.
+						| \stack
+						|     Show call stack.
+						| \locals
+						|     Show arguments and locals of current function.
+						| \watch [expr]
+						|     If an expression 'expr' is given, add 'expr' to the list of watches. Otherwise show watch list.
+						| \delete breakpoint [location] | \delete bp [location]
+						|     Delete all breakpoints or the breakpoint at 'location' if given,
+						| \delete watch [n]
+						|     Delete all watches or the watch at index 'n' if given,
+						| \set [option [value]]
+						|     If no option is given show all options. If a 'value' is given set 'option' to 'value', otherwise show the value of specified option.
 						EOF
 						;;
 					'\'*)
