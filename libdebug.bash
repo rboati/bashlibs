@@ -4,6 +4,7 @@
 declare -gA __NS__BREAKPOINTS=()
 declare -ga __NS__WATCHES=()
 declare -g  __NS__STEPMODE=1
+declare -gi __NS__RETURN_BREAK=0
 declare -ga __NS____CALLER_ARGS__
 declare -ga __NS____CALLER_LOCALS__
 declare -ga __NS____CALLER_LEVEL__
@@ -122,6 +123,14 @@ __NS__call_stack() {
 	done
 }
 
+__NS__call_stack_level() {
+	local -i i
+	for (( i=0; i < (${#FUNCNAME[@]}-1); ++i )); do
+		echo -n "$((i-initial)): "
+		caller "$i"
+	done
+}
+
 __NS__list_source_code() {
 	local -i i initial=${1:-0}
 	local SOURCE="${BASH_SOURCE[$initial + 1]}"
@@ -183,22 +192,26 @@ __NS__get_debugger_color_off() {
 __NS__debugger() {
 	{
 		local -i __NS____EXITCODE__=$?
+		set -- "${__NS____CALLER_ARGS__[@]}"
 		if (( __NS__STEPMODE == 0 )); then
-			if (( ${#__NS__BREAKPOINTS[@]} == 0 )); then
-				return $__NS____EXITCODE__
+			if (( __NS__RETURN_BREAK == 0 || __NS__RETURN_BREAK <= ${#FUNCNAME[@]} )); then
+				if (( ${#__NS__BREAKPOINTS[@]} == 0)); then
+					return $__NS____EXITCODE__
+				fi
+				local __NS____BP__
+				__NS____BP__="${BASH_SOURCE[1]}"
+				__NS____BP__="$(readlink -m "$__NS____BP__")"
+				__NS____BP__="${__NS____BP__}:${BASH_LINENO[0]}"
+				__NS____BP__="${__NS__BREAKPOINTS[$__NS____BP__]}"
+				if [[ -z $__NS____BP__ ]]; then
+					return $__NS____EXITCODE__
+				fi
+				if ! eval "$__NS____BP__"; then
+					return $__NS____EXITCODE__
+				fi
+				unset __NS____BP__
 			fi
-			local __NS____BP__
-			__NS____BP__="${BASH_SOURCE[1]}"
-			__NS____BP__="$(readlink -m "$__NS____BP__")"
-			__NS____BP__="${__NS____BP__}:${BASH_LINENO[0]}"
-			__NS____BP__="${__NS__BREAKPOINTS[$__NS____BP__]}"
-			if [[ -z $__NS____BP__ ]]; then
-				return $__NS____EXITCODE__
-			fi
-			if ! eval "$__NS____BP__"; then
-				return $__NS____EXITCODE__
-			fi
-			unset __NS____BP__
+			__NS__RETURN_BREAK=0
 		fi
 
 		__NS____CALLER_LOCALS__=( $( echo "$__NS____CALLER_LOCALS__" | while IFS="=" read -r __NS____i__ x; do echo "$__NS____i__"; done) )
@@ -210,6 +223,24 @@ __NS__debugger() {
 				__NS__call_stack 1
 			fi
 
+			if [[ ${__NS__DEBUGGER_PROPERTIES[list.auto]} == 1 ]]; then
+				printf '%bListing %s:%b\n' "$(__NS__get_debugger_color title)" "$(caller 0 | while read -r a b c; do echo "$b() in $c";done;)" "$(__NS__get_debugger_color_off title)"
+				__NS__list_source_code 1
+			fi
+
+			if [[ ${__NS__DEBUGGER_PROPERTIES[locals.auto]} == 1 ]]; then
+				printf '%bLocals:%b\n' "$(__NS__get_debugger_color title)" "$(__NS__get_debugger_color_off title)"
+				local -i __NS____i__=1
+				local __NS____ARG__
+				for __NS____ARG__ in "$@"; do
+					printf '$%s="%s"\n'  $((__NS____i__++)) "$__NS____ARG__"
+				done
+				unset __NS____i__ __NS____ARG__
+				if (( ${#__NS____CALLER_LOCALS__[@]} > 0 )); then
+					declare -p "${__NS____CALLER_LOCALS__[@]}"
+				fi
+			fi
+
 			if [[ ${__NS__DEBUGGER_PROPERTIES[watch.auto]} == 1 ]]; then
 				printf '%bWatches:%b\n' "$(__NS__get_debugger_color title)" "$(__NS__get_debugger_color_off title)"
 				local -i __NS____i__
@@ -217,18 +248,6 @@ __NS__debugger() {
 					printf '[%d] %s = %s\n' "$__NS____i__" "${__NS__WATCHES[$__NS____i__]}" "$(eval "echo ${__NS__WATCHES[$__NS____i__]}")"
 				done
 				unset __NS____i__
-			fi
-
-			if [[ ${__NS__DEBUGGER_PROPERTIES[locals.auto]} == 1 ]]; then
-				printf '%bLocals:%b\n' "$(__NS__get_debugger_color title)" "$(__NS__get_debugger_color_off title)"
-				if (( ${#__NS____CALLER_LOCALS__[@]} > 0 )); then
-					declare -p "${__NS____CALLER_LOCALS__[@]}"
-				fi
-			fi
-
-			if [[ ${__NS__DEBUGGER_PROPERTIES[list.auto]} == 1 ]]; then
-				printf '%bListing %s:%b\n' "$(__NS__get_debugger_color title)" "$(caller 0 | while read -r a b c; do echo "$b() in $c";done)" "$(__NS__get_debugger_color_off title)"
-				__NS__list_source_code 1
 			fi
 		}
 
@@ -271,6 +290,17 @@ __NS__debugger() {
 					__NS__get_debugger_color_off default
 					return $__NS____EXITCODE__
 					;;
+				'\return')
+					(( ${#FUNCNAME[@]} <= 2 )) && continue
+					__NS__STEPMODE=0
+					__NS__RETURN_BREAK="${#FUNCNAME[@]}"
+					set +o functrace
+					history -s "${__NS____REPL__[@]}"
+					history -w
+					echo "RETURN"
+					__NS__get_debugger_color_off default
+					return $__NS____EXITCODE__
+					;;
 				'\exit')
 					history -s "${__NS____REPL__[@]}"
 					history -w
@@ -307,6 +337,12 @@ __NS__debugger() {
 					history -s "${__NS____REPL__[@]}"
 					;;
 				'\locals')
+					local -i __NS____i__=1
+					local __NS____ARG__
+					for __NS____ARG__ in "$@"; do
+						printf '$%s="%s"\n'  $((__NS____i__++)) "$__NS____ARG__"
+					done
+					unset __NS____i__ __NS____ARG__
 					if (( ${#__NS____CALLER_LOCALS__[@]} > 0 )); then
 						declare -p "${__NS____CALLER_LOCALS__[@]}"
 					fi
@@ -372,7 +408,6 @@ __NS__debugger() {
 					echo "Unknown command: ${__NS____REPL__[0]}"
 					;;
 				*)
-					set -- "${__NS____CALLER_ARGS__[@]}"
 					eval "${__NS____REPL__[@]}" >&11
 					history -s "${__NS____REPL__[@]}"
 					;;
