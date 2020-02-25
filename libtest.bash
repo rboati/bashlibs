@@ -101,7 +101,7 @@ __NS__test_assert() {
 		TEST_EXIT_CODE=$PREV_EXIT_CODE
 		exit $TEST_EXIT_CODE
 	fi
-	if ! eval "$@"; then
+	if ! eval "$*"; then
 		FILE="${BASH_SOURCE[1]}"
 		FUNC="${FUNCNAME[1]}"
 		LINE="${BASH_LINENO[0]}"
@@ -120,11 +120,11 @@ __NS__match_declare() {
 }
 
 __NS__undefined_function() {
-	! declare -p -F "$1" &> /dev/null; then
+	! declare -p -F "$1" &> /dev/null
 }
 
 __NS__undefined_var() {
-	! declare -p "$1" &> /dev/null; then
+	! declare -p "$1" &> /dev/null
 }
 
 

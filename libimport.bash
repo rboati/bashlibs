@@ -1,19 +1,19 @@
 # Dependencies:
 # cat, sed
 
-[[ -n $BASH_IMPORT ]] && return
+(( ${#BASH_IMPORT[@]} != 0 )) && return
 
 if [[ -z $BASH_LIBRARY_PATH ]]; then
 	declare -g BASH_LIBRARY_PATH="$HOME/.local/lib/bash:/usr/local/lib/bash:/usr/lib/bash"
 fi
 
-declare -gA BASH_IMPORT=( ["$(readlink -e "$0")"]='<empty>,' )
+declare -gA BASH_IMPORT=( [$(readlink -e "${BASH_SOURCE[0]}")]='<empty>,' )
 
 bash_import() {
 	declare SOURCE="$1"
 	declare NS="$2"
 	shift 2
-	declare ITEM
+	declare ITEM IFS
 	declare -i FOUND=0
 	declare -a NAMESPACES
 	if [[ -z $__FILE__ ]]; then
@@ -57,6 +57,7 @@ bash_import() {
 	declare __DIR__="${__FILE__%/*}"
 	if [[ -n ${BASH_IMPORT[$__FILE__]} ]]; then
 		IFS=',' NAMESPACES=( ${BASH_IMPORT[$__FILE__]%,} )
+		unset IFS
 		for ITEM in "${NAMESPACES[@]}"; do
 			if [[ ${NS:-<empty>} == $ITEM ]]; then
 				echo "$SOURCE" "already imported with namespace \"${NS:-<empty>}\", skipping." 1>&2

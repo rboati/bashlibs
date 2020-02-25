@@ -195,11 +195,11 @@ __NS__hsm_instrument() {
 	local LINE
 	local -i i=0
 	if [[ -v $funcname ]]; then
-		CODE=$(cat <<- EOF
+		CODE="$(cat <<- EOF
 			declare -g __NS__HSM_STATE
 			declare -ga __NS__HSM_PATH=()
 			EOF
-		)
+		)"
 	else
 		CODE=$(declare -pf "$funcname" |
 			while read -r LINE; do
