@@ -20,7 +20,7 @@ declare -gra EVENT_NAMES=( A B C D E F G H I )
 state_initial() {
 	printf "topState-INIT;"
 	FOO=0
-	HSM_STATE=s2; return $RET_TRAN
+	STATE=s2; return $RET_TRAN
 }
 
 state_s() {
@@ -37,12 +37,12 @@ state_s() {
 
 		$SIG_INIT)
 			printf "s-INIT;"
-			HSM_STATE=s11; return $RET_TRAN
+			STATE=s11; return $RET_TRAN
 			;;
 
 		$SIG_E)
 			printf "s-E;"
-			HSM_STATE=s11; return $RET_TRAN
+			STATE=s11; return $RET_TRAN
 			;;
 
 		$SIG_I)
@@ -54,7 +54,7 @@ state_s() {
 			;;
 
 	esac
-	HSM_STATE=TOP_STATE; return $RET_PARENT
+	STATE=TOP_STATE; return $RET_PARENT
 }
 
 state_s1() {
@@ -71,22 +71,22 @@ state_s1() {
 
 		$SIG_INIT)
 			printf "s1-INIT;"
-			HSM_STATE=s11; return $RET_TRAN
+			STATE=s11; return $RET_TRAN
 			;;
 
 		$SIG_A)
 			printf "s1-A;"
-			HSM_STATE=s1; return $RET_TRAN
+			STATE=s1; return $RET_TRAN
 			;;
 
 		$SIG_B)
 			printf "s1-B;"
-			HSM_STATE=s11; return $RET_TRAN
+			STATE=s11; return $RET_TRAN
 			;;
 
 		$SIG_C)
 			printf "s1-C;"
-			HSM_STATE=s2; return $RET_TRAN
+			STATE=s2; return $RET_TRAN
 			;;
 
 		$SIG_D)
@@ -96,7 +96,7 @@ state_s1() {
 
 		$SIG_F)
 			printf "s1-F;"
-			HSM_STATE=s211; return $RET_TRAN
+			STATE=s211; return $RET_TRAN
 			;;
 
 		$SIG_I)
@@ -106,7 +106,7 @@ state_s1() {
 
 	esac
 
-	HSM_STATE=s; return $RET_PARENT
+	STATE=s; return $RET_PARENT
 }
 
 state_s11() {
@@ -125,22 +125,22 @@ state_s11() {
 			if (( FOO != 0 )); then
 				printf "s11-D;"
 				FOO=0
-				HSM_STATE=s1; return $RET_TRAN
+				STATE=s1; return $RET_TRAN
 			fi
 			;;
 
 		$SIG_G)
 			printf "s11-G;"
-			HSM_STATE=s211; return $RET_TRAN
+			STATE=s211; return $RET_TRAN
 			;;
 
 		$SIG_H)
 			printf "s11-H;"
-			HSM_STATE=s; return $RET_TRAN
+			STATE=s; return $RET_TRAN
 			;;
 	esac
 
-	HSM_STATE=s1; return $RET_PARENT
+	STATE=s1; return $RET_PARENT
 }
 
 state_s2() {
@@ -157,17 +157,17 @@ state_s2() {
 
 		$SIG_INIT)
 			printf "s2-INIT;"
-			HSM_STATE=s211; return $RET_TRAN
+			STATE=s211; return $RET_TRAN
 			;;
 
 		$SIG_C)
 			printf "s2-C;"
-			HSM_STATE=s1; return $RET_TRAN
+			STATE=s1; return $RET_TRAN
 			;;
 
 		$SIG_F)
 			printf "s2-F;"
-			HSM_STATE=s11; return $RET_TRAN
+			STATE=s11; return $RET_TRAN
 			;;
 
 		$SIG_I)
@@ -179,7 +179,7 @@ state_s2() {
 			;;
 
 	esac
-	HSM_STATE=s; return $RET_PARENT
+	STATE=s; return $RET_PARENT
 }
 
 state_s21() {
@@ -196,25 +196,25 @@ state_s21() {
 
 		$SIG_INIT)
 			printf "s21-INIT;"
-			HSM_STATE=s211; return $RET_TRAN
+			STATE=s211; return $RET_TRAN
 			;;
 
 		$SIG_A)
 			printf "s21-A;"
-			HSM_STATE=s21; return $RET_TRAN
+			STATE=s21; return $RET_TRAN
 			;;
 
 		$SIG_B)
 			printf "s21-B;"
-			HSM_STATE=s211; return $RET_TRAN
+			STATE=s211; return $RET_TRAN
 			;;
 
 		$SIG_G)
 			printf "s21-G;"
-			HSM_STATE=s1; return $RET_TRAN
+			STATE=s1; return $RET_TRAN
 			;;
 	esac
-	HSM_STATE=s2; return $RET_PARENT
+	STATE=s2; return $RET_PARENT
 }
 
 state_s211() {
@@ -231,22 +231,22 @@ state_s211() {
 
 		$SIG_D)
 			printf "s211-D;"
-			HSM_STATE=s21; return $RET_TRAN
+			STATE=s21; return $RET_TRAN
 			;;
 
 		$SIG_H)
 			printf "s211-H;"
-			HSM_STATE=s; return $RET_TRAN
+			STATE=s; return $RET_TRAN
 			;;
 	esac
-	HSM_STATE=s21; return $RET_PARENT
+	STATE=s21; return $RET_PARENT
 }
 
 choice1() {
 	if (( FOO == 0 )); then
 		printf "s1-D;"
 		FOO=1
-		HSM_STATE=s; return $RET_TRAN
+		STATE=s; return $RET_TRAN
 	fi
 	return $RET_HANDLED
 }
@@ -258,7 +258,7 @@ send() {
 }
 
 example_machine() {
-	local HSM_STATE      # hsm state
+	local STATE      # hsm state
 	local -a HSM_PATH=() # hsm path
 
 	local FOO
@@ -293,7 +293,7 @@ main() {
 	set_debugger_property locals.auto 1
 	set_debugger_property watch.auto 1
 	add_watch '$__EXITCODE__'
-	add_watch '$HSM_STATE'
+	add_watch '$STATE'
 	add_watch '"$HSM_PATH[@]"'
 	set_debugger_trap
 

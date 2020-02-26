@@ -15,13 +15,13 @@ __NS__state_TOP_STATE() {
 
 __NS__hsm_dispatch() {
 	local __NS____s__
-	local __NS____t__=$__NS__HSM_STATE
+	local __NS____t__=$__NS__STATE
 	local -i __NS____r__
 	local -i __NS____ip__
 	local -i __NS____iq__
 
 	while :; do
-		__NS____s__=$__NS__HSM_STATE
+		__NS____s__=$__NS__STATE
 		__NS__state_$__NS____s__ "${@}"
 		__NS____r__=$?
 		(( __NS____r__ == __NS__RET_PARENT )) || break
@@ -30,7 +30,7 @@ __NS__hsm_dispatch() {
 	if (( __NS____r__ == __NS__RET_TRAN )); then
 		__NS____ip__="-1"
 
-		__NS__HSM_PATH[0]=$__NS__HSM_STATE
+		__NS__HSM_PATH[0]=$__NS__STATE
 		__NS__HSM_PATH[1]=$__NS____t__
 
 		while [[ $__NS____t__ != $__NS____s__ ]]; do
@@ -38,7 +38,7 @@ __NS__hsm_dispatch() {
 			if (( $? == __NS__RET_HANDLED )); then
 				__NS__state_$__NS____t__ $__NS__SIG_EMPTY
 			fi
-			__NS____t__=$__NS__HSM_STATE
+			__NS____t__=$__NS__STATE
 		done
 		__NS____t__=${__NS__HSM_PATH[0]}
 
@@ -47,34 +47,34 @@ __NS__hsm_dispatch() {
 			__NS____ip__=0
 		else
 			__NS__state_$__NS____t__ $__NS__SIG_EMPTY
-			__NS____t__=$__NS__HSM_STATE;
+			__NS____t__=$__NS__STATE;
 			if [[ $__NS____s__ == $__NS____t__ ]]; then
 				__NS____ip__=0
 			else
 				__NS__state_$__NS____s__ $__NS__SIG_EMPTY
-				if [[ $__NS__HSM_STATE == $__NS____t__ ]]; then
+				if [[ $__NS__STATE == $__NS____t__ ]]; then
 					__NS__state_$__NS____s__ $__NS__SIG_EXIT
 					__NS____ip__=0
 				else
-					if [[ $__NS__HSM_STATE == ${__NS__HSM_PATH[0]} ]]; then
+					if [[ $__NS__STATE == ${__NS__HSM_PATH[0]} ]]; then
 						__NS__state_$__NS____s__ $__NS__SIG_EXIT
 					else
 						__NS____iq__=0
 						__NS____ip__=1
 						__NS__HSM_PATH[1]=$__NS____t__
-						__NS____t__=$__NS__HSM_STATE
+						__NS____t__=$__NS__STATE
 						__NS__state_${__NS__HSM_PATH[1]} $__NS__SIG_EMPTY
 						__NS____r__=$?
 						while (( __NS____r__ == __NS__RET_PARENT )); do
 							let ++__NS____ip__;
-							__NS__HSM_PATH[$__NS____ip__]=$__NS__HSM_STATE
-							if [[ $__NS__HSM_STATE == $__NS____s__ ]]; then
+							__NS__HSM_PATH[$__NS____ip__]=$__NS__STATE
+							if [[ $__NS__STATE == $__NS____s__ ]]; then
 								__NS____iq__=1
 								# assert __NS____ip__ < MAX_NEST_DEPTH;
 								let --__NS____ip__
 								__NS____r__=$__NS__RET_HANDLED
 							else
-								__NS__state_$__NS__HSM_STATE $__NS__SIG_EMPTY
+								__NS__state_$__NS__STATE $__NS__SIG_EMPTY
 								__NS____r__=$?
 							fi
 						done
@@ -100,7 +100,7 @@ __NS__hsm_dispatch() {
 									if (( $? == __NS__RET_HANDLED )); then
 										__NS__state_$__NS____t__ $__NS__SIG_EMPTY
 									fi
-									__NS____t__=$__NS__HSM_STATE
+									__NS____t__=$__NS__STATE
 									__NS____iq__=$__NS____ip__
 									while :; do
 										if [[ $__NS____t__ == ${__NS__HSM_PATH[$__NS____iq__]} ]]; then
@@ -125,19 +125,19 @@ __NS__hsm_dispatch() {
 			__NS__state_${__NS__HSM_PATH[$__NS____ip__]} $__NS__SIG_ENTRY
 		done
 		__NS____t__=${__NS__HSM_PATH[0]}
-		__NS__HSM_STATE=$__NS____t__
+		__NS__STATE=$__NS____t__
 		while :; do
 			__NS__state_$__NS____t__ $__NS__SIG_INIT
 			(( $? == __NS__RET_TRAN )) || break
 			__NS____ip__=0
-			__NS__HSM_PATH[0]=$__NS__HSM_STATE
-			__NS__state_$__NS__HSM_STATE $__NS__SIG_EMPTY
-			while [[ $__NS__HSM_STATE != $__NS____t__ ]]; do
+			__NS__HSM_PATH[0]=$__NS__STATE
+			__NS__state_$__NS__STATE $__NS__SIG_EMPTY
+			while [[ $__NS__STATE != $__NS____t__ ]]; do
 				let ++__NS____ip__
-				__NS__HSM_PATH[$__NS____ip__]=$__NS__HSM_STATE
-				__NS__state_$__NS__HSM_STATE $__NS__SIG_EMPTY
+				__NS__HSM_PATH[$__NS____ip__]=$__NS__STATE
+				__NS__state_$__NS__STATE $__NS__SIG_EMPTY
 			done
-			__NS__HSM_STATE=${__NS__HSM_PATH[0]}
+			__NS__STATE=${__NS__HSM_PATH[0]}
 			# assert __NS____ip__ < MAX_NEST_DEPTH;
 			while :; do
 				__NS__state_${__NS__HSM_PATH[$__NS____ip__]} $__NS__SIG_ENTRY
@@ -147,7 +147,7 @@ __NS__hsm_dispatch() {
 			__NS____t__=${__NS__HSM_PATH[0]}
 		done
 	fi
-	__NS__HSM_STATE=$__NS____t__
+	__NS__STATE=$__NS____t__
 }
 
 __NS__hsm_throw_error() {
@@ -157,11 +157,11 @@ __NS__hsm_throw_error() {
 __NS__hsm_init() {
 	local initialState="$1"
 	shift
-	__NS__HSM_STATE=$initialState
+	__NS__STATE=$initialState
 	if [[ -z $2 ]]; then
-		__NS__state_$__NS__HSM_STATE $__NS__SIG_INIT
+		__NS__state_$__NS__STATE $__NS__SIG_INIT
 	else
-		__NS__state_$__NS__HSM_STATE "$@"
+		__NS__state_$__NS__STATE "$@"
 	fi
 	if (( $? != __NS__RET_TRAN )); then
 		__NS__hsm_throw_error
@@ -169,14 +169,14 @@ __NS__hsm_init() {
 	local t=TOP_STATE
 	while :; do
 		local __NS____ip__=0
-		__NS__HSM_PATH[0]=$__NS__HSM_STATE
-		__NS__state_$__NS__HSM_STATE $__NS__SIG_EMPTY
-		while [[ $__NS__HSM_STATE != $t ]]; do
+		__NS__HSM_PATH[0]=$__NS__STATE
+		__NS__state_$__NS__STATE $__NS__SIG_EMPTY
+		while [[ $__NS__STATE != $t ]]; do
 			let ++__NS____ip__
-			__NS__HSM_PATH[$__NS____ip__]=$__NS__HSM_STATE
-			__NS__state_$__NS__HSM_STATE $__NS__SIG_EMPTY
+			__NS__HSM_PATH[$__NS____ip__]=$__NS__STATE
+			__NS__state_$__NS__STATE $__NS__SIG_EMPTY
 		done
-		__NS__HSM_STATE=${__NS__HSM_PATH[0]}
+		__NS__STATE=${__NS__HSM_PATH[0]}
 		# assert __NS____ip__ < MAX_NEST_DEPTH;
 		while :; do
 			__NS__state_${__NS__HSM_PATH[$__NS____ip__]} $__NS__SIG_ENTRY
@@ -187,7 +187,7 @@ __NS__hsm_init() {
 		__NS__state_$t $__NS__SIG_INIT
 		(( $? == __NS__RET_TRAN )) || break
 	done
-	__NS__HSM_STATE=$t
+	__NS__STATE=$t
 }
 
 __NS__hsm_instrument() {
@@ -196,7 +196,7 @@ __NS__hsm_instrument() {
 	local -i i=0
 	if [[ -v $funcname ]]; then
 		CODE="$(cat <<- EOF
-			declare -g __NS__HSM_STATE
+			declare -g __NS__STATE
 			declare -ga __NS__HSM_PATH=()
 			EOF
 		)"
@@ -205,7 +205,7 @@ __NS__hsm_instrument() {
 			while read -r LINE; do
 				echo "$LINE"
 				if (( i==1 )); then
-					echo "local __NS__HSM_STATE"
+					echo "local __NS__STATE"
 					echo "local -a __NS__HSM_PATH=()"
 					exec cat
 				fi
