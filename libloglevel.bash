@@ -9,19 +9,38 @@ fi
 
 
 
-__NS__generate_log_functions() {
-	declare -a SUFFIXES=( "${__NS__LOGLEVELS[@],,}" )
-	unset SUFFIXES[0]
-	declare -i LEVEL i
-	declare SUFFIX
-	declare LEVELNAME
-	declare COLOR
-	declare -r RESET="\e[0m"
-	declare TEMPLATE TEMPLATE_SINK
+__NS__logdomain_filter() {
+	local prefix="$1"
+	local IFS='' msg
+	while read -r msg; do
+		printf '%b%s\n' "$prefix" "$msg"
+	done
+}
 
-	if [[ -z $__NS__LOGLEVEL ]]; then
-		declare -gi __NS__LOGLEVEL=$__NS__LOGLEVEL_DEFAULT
-	fi
+__NS__loglevel_filter() {
+	local prefix="$1"
+	local IFS='' msg
+	while read -r msg; do
+		printf '%b%s\n' "$prefix" "$msg"
+	done
+}
+
+
+__NS__generate_log_functions() {
+	local -i loglevel="${1:-$__NS__LOGLEVEL_DEFAULT}"
+	local -a suffixes=( "${__NS__LOGLEVELS[@],,}" )
+	unset suffixes[0]
+	local -i level fd
+	local suffix
+	local level_name
+	local color reset
+	local template
+
+	for (( level=0; level<${#__NS__LOGLEVELS[@]}; ++level)); do
+		let fd=100+level
+		eval "exec ${fd}>&-"
+	done
+
 	if [[ -z $__NS__LOGCOLOR ]]; then
 		declare -i __NS__LOGCOLOR=1
 	fi
@@ -30,59 +49,57 @@ __NS__generate_log_functions() {
 		declare __NS__LOGSINK='1>&2'
 	fi
 
-	for LEVEL in ${!SUFFIXES[@]}; do
-		SUFFIX=${SUFFIXES[$LEVEL]}
-		LEVELNAME="${__NS__LOGLEVELS[$LEVEL]}"
-		COLOR="${__NS__LOGCOLORS[$LEVEL]}"
-		if [[ -z $COLOR ]]; then
-			COLOR='0'
-		fi
-		COLOR="\e[${COLOR}m"
+	for level in ${!suffixes[@]}; do
+		suffix=${suffixes[$level]}
+		level_name="${__NS__LOGLEVELS[$level]}"
+		let fd=100+level
 
-		if (( __NS__LOGLEVEL >= LEVEL )); then
-			if (( $__NS__LOGCOLOR == 1 )); then
-				TEMPLATE_SINK=$(cat <<- EOF
-					{
-						while IFS='' read -r MSG; do printf '%b:%b:%s\n' "${COLOR}\$__NS__LOGDOMAIN${RESET}" "${COLOR}${LEVELNAME}${RESET}" "\$MSG"; done;
-					} $__NS__LOGSINK
-					EOF
-				)
-			else
-				TEMPLATE_SINK=$(cat <<- EOF
-					{
-						while IFS='' read -r MSG; do printf '%s:%s:%s\n' "\$__NS__LOGDOMAIN" "$LEVELNAME" "\$MSG"; done;
-					} $__NS__LOGSINK
-					EOF
-				)
-			fi
-			TEMPLATE=$(cat <<- EOF
-				__NS__log${SUFFIX}()   {
-					declare -ir X=\$?; declare MSG;
-					$TEMPLATE_SINK;
+		if (( $__NS__LOGCOLOR == 1 )); then
+			color="${__NS__LOGCOLORS[$level]}"
+			[[ -z $color ]] && color='0'
+			color="\e[${color}m"
+			reset="\e[0m"
+		else
+			color=''
+			reset=''
+		fi
+
+		if (( loglevel >= level )); then
+			template=$(cat <<- EOF
+				exec ${fd}>&2;
+				exec ${fd}> >(__NS__loglevel_filter "${color}${level_name}${reset}:" $__NS__LOGSINK;);
+
+				__NS__log${suffix}()   {
+					declare -ir X=\$?;
+					cat > >(__NS__logdomain_filter "${color}\$__NS__LOGDOMAIN${reset}:" >&${fd};);
 					return \$X;
 				}
-				__NS__echo${SUFFIX}()  {
-					declare -ir X=\$?; declare MSG;
-					printf '%s\n' "\$*" | $TEMPLATE_SINK;
+				__NS__echo${suffix}()  {
+					declare -ir X=\$?; declare msg;
+					printf '%b:%s\n' "${color}\$__NS__LOGDOMAIN${reset}" "\$*" >&${fd};
 					return \$X;
 				}
-				__NS__print${SUFFIX}() {
-					declare -ir X=\$?; declare MSG; declare FMT="\$1"; shift;
-					printf "\$FMT" "\$@" | $TEMPLATE_SINK;
+				__NS__print${suffix}() {
+					declare -ir X=\$?; declare msg; declare FMT="\$1"; shift;
+					printf "${color}\$__NS__LOGDOMAIN${reset}:\$FMT\n" "\$@" >&${fd};
 					return \$X;
 				}
+				EOF
+			)
+			eval "$template"
+			template+=$(cat <<- EOF
 				EOF
 			)
 		else
-			TEMPLATE=$(cat <<- EOF
-				__NS__log${SUFFIX}()   { return \$?; }
-				__NS__echo${SUFFIX}()  { return \$?; }
-				__NS__print${SUFFIX}() { return \$?; }
+			template=$(cat <<- EOF
+				__NS__log${suffix}()   { declare -ir X=\$?; cat > /dev/null; return \$X; }
+				__NS__echo${suffix}()  { return \$?; }
+				__NS__print${suffix}() { return \$?; }
 				EOF
 			)
 		fi
-
-		eval "$TEMPLATE"
+		eval "$template"
+		declare -gi __NS__LOGLEVEL="$loglevel"
 	done
 }
 
@@ -114,7 +131,7 @@ __NS__printtrace() { return $?; }
 
 ##
 ## Arguments:
-##   {LEVEL} : level number or level name
+##   {level} : level number or level name
 ##
 ## Globals:
 ##   LOGLEVEL, LOGLEVEL_DEFAULT, LOGLEVELS, LOGCOLORS
@@ -126,34 +143,33 @@ __NS__printtrace() { return $?; }
 ##   3 : unknown, cannot set the requested string level; level has been set to the default
 ##
 __NS__set_loglevel() {
-	declare LEVEL="$1"
+	declare level="$1"
 	declare -i i err=0
 
-	if [[ $LEVEL =~ ^[0-9]+$ ]]; then
-		if (( LEVEL < 0 )); then
-			LEVEL=0
+	if [[ $level =~ ^[0-9]+$ ]]; then
+		if (( level < 0 )); then
+			level=0
 			err=1
-		elif (( LEVEL >= ${#__NS__LOGLEVELS[@]} )); then
-			LEVEL=$(( ${#__NS__LOGLEVELS[@]} - 1 ))
+		elif (( level >= ${#__NS__LOGLEVELS[@]} )); then
+			level=$(( ${#__NS__LOGLEVELS[@]} - 1 ))
 			err=2
 		fi
 	else
 		while : ; do
 			for (( i=0; i< ${#__NS__LOGLEVELS[@]}; ++i )); do
-				if [[ $LEVEL == ${__NS__LOGLEVELS[$i]} ]]; then
-					LEVEL=$i
+				if [[ ${level,,} == "${__NS__LOGLEVELS[$i],,}" ]]; then
+					level=$i
 					break 2
 				fi
 			done
-			LEVEL=$__NS__LOGLEVEL_DEFAULT
+			level=$__NS__LOGLEVEL_DEFAULT
 			err=3
 			break
 		done
 	fi
-	__NS__LOGLEVEL=$LEVEL __NS__generate_log_functions
+	__NS__generate_log_functions $level
 	return $err
 }
 
-__NS__generate_log_functions
 
 

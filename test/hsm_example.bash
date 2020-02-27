@@ -299,4 +299,3 @@ main() {
 
 	example_machine
 }
-

@@ -7,9 +7,6 @@ bash_import ../libhsm.bash
 bash_import ./hsm_example.bash
 
 
-
-
-
 declare -gr EXPECTED="$(cat <<- EOF
 	topState-INIT;s-ENTRY;s2-ENTRY;s2-INIT;s21-ENTRY;s211-ENTRY;
 	A:s21-A;s211-EXIT;s21-EXIT;s21-ENTRY;s21-INIT;s211-ENTRY;
