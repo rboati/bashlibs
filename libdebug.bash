@@ -16,7 +16,7 @@ declare -gA __NS__DEBUGGER_PROPERTIES=(
 	[list.auto]=1
 	[list.context]=1
 	[stack.auto]=1
-	[watch.auto]=0
+	[watch.auto]=1
 	[color]=1
 	[color.default]='2'
 	[color.default.off]='22'
@@ -170,9 +170,9 @@ __NS__list_source_code() {
 			[[ $? != 0 ]] && OUT="..."
 			OUT="${OUT%$'\n'}"
 			if (( i == LINE )); then
-				printf '%b%5s> %s%b\n' "${LINE_COLOR_ON}" "$((i))" "$OUT" "${LINE_COLOR_OFF}"
+				printf '%b%6s> %s%b\n' "${LINE_COLOR_ON}" "$((i))" "$OUT" "${LINE_COLOR_OFF}"
 			else
-				printf '%5s: %s\n' "$((i))" "$OUT"
+				printf '%6s: %s\n' "$((i))" "$OUT"
 			fi
 		done
 	} 2> /dev/null

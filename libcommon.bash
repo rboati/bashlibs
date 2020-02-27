@@ -1,14 +1,14 @@
 
 # $1: varname
 # $2: (optional). string with char to trim, by default "[:space:]"
-__NS__triml() {
+__NS__ltrim() {
 	eval "$var=\"\${$1#\"\${$1%%[!${2:-[:space:]}]*}\"}\""
 }
 
 
 # $1: varname
 # $2: (optional). string with char to trim, by default "[:space:]"
-__NS__trimr() {
+__NS__rtrim() {
 	eval "$var=\"\${$1%\"\${$1##*[!${2:-[:space:]}]}\"}\""
 }
 
@@ -16,8 +16,8 @@ __NS__trimr() {
 # $1: varname
 # $2: (optional). string with char to trim, by default "[:space:]"
 __NS__trim() {
-	triml "$@"
-	trimr "$@"
+	ltrim "$@"
+	rtrim "$@"
 }
 
 
@@ -30,17 +30,33 @@ __NS__split_string() {
 }
 
 __NS__join_array_v() {
-	local varout="$1"
-	local varname="$2"
-	local sep="$3"
-	eval "printf -v $varout \"%s${sep}\" \"\${$varname[@]}\""
-	eval "printf -v $varout '%s' \"\${$varout%\$'$sep'}\""
+	local VAROUT="$1"
+	local VARNAME="$2"
+	local SEP="$3"
+	eval "printf -v $VAROUT \"%s${SEP}\" \"\${$VARNAME[@]}\""
+	eval "printf -v $VAROUT '%s' \"\${$VAROUT%\$'$SEP'}\""
 }
 
 __NS__join_array() {
-	local varname="$1"
-	local sep="$2"
-	local out
-	__NS__join_array_v out "$varname" "$sep"
-	printf '%s' "$out"
+	local VARNAME="$1"
+	local SEP="$2"
+	local OUT
+	__NS__join_array_v OUT "$VARNAME" "$SEP"
+	printf '%s' "$OUT"
+}
+
+
+__NS__generate_prefix_filter() {
+	local NAME="$1"
+	local PREFIX="$2"
+	local TEMPLATE="$(cat <<- EOF
+		$NAME() {
+			local LINE
+			while read -r LINE; do
+				printf '%s%s\n'  ${PREFIX@Q} "\$LINE"
+			done
+		}
+		EOF
+	)"
+	eval "$TEMPLATE"
 }
