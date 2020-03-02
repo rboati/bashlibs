@@ -7,6 +7,8 @@ declare -ga __NS__WATCHES=()
 declare -g  __NS__STEPMODE=1
 declare -ga __NS__STEPMODE_NAMES=( CONT STEP NEXT RETURN )
 declare -gi __NS__RETURN_BREAK=0
+declare -gi __NS__CURRENT_BASHPID
+declare -gi __NS____EXITCODE__
 declare -ga __NS____CALLER_ARGS__
 declare -ga __NS____CALLER_LOCALS__
 declare -ga __NS____CALLER_LEVEL__
@@ -30,10 +32,10 @@ declare -gA __NS__DEBUGGER_PROPERTIES=(
 	[color.value.off]='39'
 )
 
-
 __NS__set_debugger_trap() {
+	__NS__CURRENT_BASHPID="$BASHPID"
 	set -o functrace
-	trap '__NS____CALLER_ARGS__=( "$@" ); __NS____CALLER_LOCALS__="$(local 2> /dev/null)"; __NS__debugger' DEBUG
+	trap '{ __NS____EXITCODE__=$?; __NS____CALLER_ARGS__=( "$@" ); __NS____CALLER_LOCALS__="$(local 2> /dev/null)"; __NS__debugger; } 0<&10 1>&11 2>&12' DEBUG
 }
 
 __NS__unset_debugger_trap() {
@@ -210,8 +212,7 @@ __NS__get_debugger_color_off() {
 }
 
 __NS__debugger() {
-	{
-		local -i __NS____EXITCODE__=$?
+		#(( $BASHPID != $__NS__CURRENT_BASHPID )) && return $__NS____EXITCODE__
 		local -i __NS____BREAK__=0
 		local IFS=$' \t\n'
 		set -- "${__NS____CALLER_ARGS__[@]}"
@@ -267,7 +268,7 @@ __NS__debugger() {
 
 		__NS__get_debugger_color default
 
-		local HISTFILE="$HOME/.bash_debugger"
+		local HISTFILE="$HOME/.bash_debugger_history"
 		local HISTCONTROL="ignoreboth:erasedups"
 		history -c
 		history -r
@@ -518,7 +519,6 @@ __NS__debugger() {
 			__NS__get_debugger_color_off default
 			return $__NS____EXITCODE__
 		done # AUTO DISPLAY LOOP
-	} 0<&10 1>&11 2>&12 # set stdin, stdout, stderr
 }
 
 exec 10<&0 11>&1 12>&2 # save stdin, stdout, stderr

@@ -2,6 +2,7 @@
 
 
 
+DEBUG=1
 source "../libimport.bash"
 bash_import "libdebug.bash" __NS__
 
@@ -16,4 +17,7 @@ if [[ -n "$1" ]]; then
 	__NS__STEPMODE=0
 	__NS__set_debugger_trap
 	source "$__DEBUG_FILE__" "$@"
+	wait
+	exec 0<&10 1>&11 2>&12 # set stdin, stdout, stderr
+	exec 10<&- 11>&- 12>&- # close copies of stdin, stdout, stderr
 fi
