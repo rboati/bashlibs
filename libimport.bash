@@ -45,8 +45,8 @@ bash_import() {
 		unset IFS
 	fi
 	if (( FOUND == 1 )); then
-		declare __FILE__="$(readlink -e "$__FILE__")"
-		if (( $? != 0)); then
+		__FILE__="$(readlink -e "$__FILE__")"
+		if (( $? != 0)) || [[ -z $__FILE__ ]]; then
 			FOUND=0
 		fi
 	fi
@@ -54,7 +54,8 @@ bash_import() {
 		echo "$SOURCE not found! ($__FILE__)" 1>&2
 		exit 1
 	fi
-	declare __DIR__="${__FILE__%/*}"
+	__DIR__="${__FILE__%/*}"
+
 	if [[ -n ${BASH_IMPORT[$__FILE__]} ]]; then
 		IFS=',' NAMESPACES=( ${BASH_IMPORT[$__FILE__]%,} )
 		unset IFS
