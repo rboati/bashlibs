@@ -1,5 +1,6 @@
-#/bin/bash
+#!/bin/bash
 
+# shellcheck disable=SC1091
 source ../libimport.bash
 ASSERT=1 bash_import ../libassert.bash
 

@@ -17,6 +17,7 @@ bash_import() {
 	declare -i FOUND=0
 	declare -a NAMESPACES
 	if [[ -z $__FILE__ ]]; then
+		# shellcheck disable=SC2155
 		declare __FILE__="$(readlink -e "$0")"
 		declare __DIR__="${__FILE__%/*}"
 	fi
@@ -45,8 +46,7 @@ bash_import() {
 		unset IFS
 	fi
 	if (( FOUND == 1 )); then
-		__FILE__="$(readlink -e "$__FILE__")"
-		if (( $? != 0)) || [[ -z $__FILE__ ]]; then
+		if ! __FILE__="$(readlink -e "$__FILE__")" || [[ -z $__FILE__ ]]; then
 			FOUND=0
 		fi
 	fi
@@ -57,10 +57,10 @@ bash_import() {
 	__DIR__="${__FILE__%/*}"
 
 	if [[ -n ${BASH_IMPORT[$__FILE__]} ]]; then
-		IFS=',' NAMESPACES=( ${BASH_IMPORT[$__FILE__]%,} )
+		IFS=',' read -r -a NAMESPACES <<< "${BASH_IMPORT[$__FILE__]%,}"
 		unset IFS
 		for ITEM in "${NAMESPACES[@]}"; do
-			if [[ ${NS:-<empty>} == $ITEM ]]; then
+			if [[ ${NS:-<empty>} == "$ITEM" ]]; then
 				echo "$SOURCE" "already imported with namespace \"${NS:-<empty>}\", skipping." 1>&2
 				return 2
 			fi
@@ -80,11 +80,12 @@ bash_import() {
 	if [[ -n $DEBUG ]] && (( DEBUG > 0 )); then
 		local -r tmpdir="/tmp/$USER/libimport.bash/$$"
 		mkdir -p "$tmpdir"
-		cat "$__FILE__" | sed "s/\<__[N]S__/${NS}/g" > "$tmpdir/${__FILE__##*/}"
+		sed -e "s/\<__[N]S__/${NS}/g" > "$tmpdir/${__FILE__##*/}" "$__FILE__"
+		# shellcheck disable=SC1090
 		source "$tmpdir/${__FILE__##*/}"
-		(( $DEBUG == 1 )) && rm -rf "$tmpdir"
+		(( DEBUG == 1 )) && rm -rf "$tmpdir"
 	else
-		eval "$(cat "$__FILE__" | sed "s/\<__[N]S__/${NS}/g")"
+		eval "$(sed -e "s/\<__[N]S__/${NS}/g" "$__FILE__")"
 	fi
 }
 

@@ -1,12 +1,13 @@
-#/bin/bash
+#!/bin/bash
 
-
+# shellcheck disable=SC1091
 source ../libimport.bash
 bash_import ../libtest.bash
 bash_import ../libhsm.bash
 bash_import ./hsm_example.bash
 
 
+# shellcheck disable=SC2155
 declare -gr EXPECTED="$(cat <<- EOF
 	topState-INIT;s-ENTRY;s2-ENTRY;s2-INIT;s21-ENTRY;s211-ENTRY;
 	A:s21-A;s211-EXIT;s21-EXIT;s21-ENTRY;s21-INIT;s211-ENTRY;
@@ -34,7 +35,8 @@ declare -gr EXPECTED="$(cat <<- EOF
 )"
 
 testsuite_1_test_run() {
-	local OUT="$(example_machine)"
+	local OUT
+	OUT="$(example_machine)"
 	test_assert
 	[[ -n $OUT ]] || test_assert
 	[[ "$OUT" == "$EXPECTED" ]] || test_assert
@@ -42,8 +44,11 @@ testsuite_1_test_run() {
 }
 
 example_machine_2() {
+	# shellcheck disable=SC2034
 	local STATE      # hsm state
+	# shellcheck disable=SC2034
 	local -a HSM_PATH=() # hsm path
+	# shellcheck disable=SC2034
 	local FOO
 	hsm_init initial
 
@@ -53,6 +58,7 @@ example_machine_2() {
 }
 
 testsuite_1_test_run2() {
+	# shellcheck disable=SC2155
 	local OUT=$(cat <<- EOF > >(example_machine_2)
 		$SIG_A
 		$SIG_B
@@ -120,7 +126,8 @@ testsuite_2_test_run() {
 
 	sleep 1
 
-	local OUT="$(sync; cat example_machine_2.log)"
+	local OUT
+	OUT="$(sync; cat example_machine_2.log)"
 
 	[[ "$OUT" == "$EXPECTED" ]] || test_assert
 	test_assert '[[ $OUT == "$EXPECTED" ]]'

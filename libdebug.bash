@@ -7,11 +7,10 @@ declare -ga __NS__WATCHES=()
 declare -g  __NS__STEPMODE=1
 declare -ga __NS__STEPMODE_NAMES=( CONT STEP NEXT RETURN )
 declare -gi __NS__RETURN_BREAK=0
-declare -gi __NS__CURRENT_BASHPID
 declare -gi __NS____EXITCODE__
+declare -gi __NS____CALLER_BASHPID__
 declare -ga __NS____CALLER_ARGS__
 declare -ga __NS____CALLER_LOCALS__
-declare -ga __NS____CALLER_LEVEL__
 declare -gA __NS__DEBUGGER_PROPERTIES=(
 	[auto]="stack list locals watch"
 	[locals.auto]=0
@@ -33,10 +32,17 @@ declare -gA __NS__DEBUGGER_PROPERTIES=(
 )
 
 __NS__set_debugger_trap() {
-	__NS__CURRENT_BASHPID="$BASHPID"
+	# shellcheck disable=SC2034
+	__NS____CALLER_BASHPID__=$BASHPID
 	set -o functrace
-	trap '{ __NS____EXITCODE__=$?; __NS____CALLER_ARGS__=( "$@" ); __NS____CALLER_LOCALS__="$(local 2> /dev/null)"; __NS__debugger; } 0<&10 1>&11 2>&12' DEBUG
+	trap '{ __NS____EXITCODE__=$?; (( __NS____CALLER_BASHPID__ == BASHPID )) && { __NS____CALLER_ARGS__=( "$@" ); __NS____CALLER_LOCALS__="$(local 2> /dev/null)"; __NS__set_exit_code $__NS____EXITCODE__; __NS__debugger; }; __NS__set_exit_code $__NS____EXITCODE__; } 0<&10 1>&11 2>&12' DEBUG
 }
+
+__NS__set_exit_code() {
+	local -i i="$1"
+	return "$i"
+}
+
 
 __NS__unset_debugger_trap() {
 	trap '' DEBUG
@@ -67,7 +73,7 @@ __NS__unset_breakpoint() {
 		SOURCE="${BASH_SOURCE[1]}"
 	fi
 	SOURCE="$(readlink -m "$SOURCE")"
-	unset __NS__BREAKPOINTS[$SOURCE:$LINE]
+	unset __NS__BREAKPOINTS["$SOURCE:$LINE"]
 }
 
 __NS__get_breakpoint_list() {
@@ -84,7 +90,7 @@ __NS__add_data_breakpoint() {
 
 __NS__delete_data_breakpoint() {
 	local INDEX="$1"
-	unset __NS__DATA_BREAKPOINTS[$INDEX]
+	unset __NS__DATA_BREAKPOINTS["$INDEX"]
 }
 
 __NS__get_data_breakpoint_list() {
@@ -101,7 +107,7 @@ __NS__add_watch() {
 
 __NS__delete_watch() {
 	local INDEX="$1"
-	unset __NS__WATCHES[$INDEX]
+	unset __NS__WATCHES["$INDEX"]
 }
 
 __NS__set_debugger_property() {
@@ -116,20 +122,23 @@ __NS__set_debugger_property() {
 __NS__get_debugger_properties() {
 	local PROP="$1"
 	if [[ -z $PROP ]]; then
+		# shellcheck disable=SC2030
 		for PROP in  "${!__NS__DEBUGGER_PROPERTIES[@]}"; do
 			printf '%20s = "%s"\n' "$PROP" "${__NS__DEBUGGER_PROPERTIES[$PROP]}"
 		done | sort
 		return
 	fi
+	# shellcheck disable=SC2031
 	if [[ -z ${__NS__DEBUGGER_PROPERTIES[$PROP]:+test} ]]; then
 		return
 	fi
+	# shellcheck disable=SC2031
 	printf '%20s = "%s"\n' "$PROP" "${__NS__DEBUGGER_PROPERTIES[$PROP]}"
 }
 
 __NS__debugger_output_filter() {
 	local PROMPT_COLOR_ON='' PROMPT_COLOR_OFF=''
-	if (( ${__NS__DEBUGGER_PROPERTIES[color]} == 1 )); then
+	if (( __NS__DEBUGGER_PROPERTIES[color] == 1 )); then
 		PROMPT_COLOR_ON="$(__NS__get_debugger_color prompt)"
 		PROMPT_COLOR_OFF="$(__NS__get_debugger_color_off prompt)"
 	fi
@@ -162,14 +171,13 @@ __NS__list_source_code() {
 	local -i CONTEXT="${__NS__DEBUGGER_PROPERTIES[list.context]}"
 	local OUT
 	local LINE_COLOR_ON='' LINE_COLOR_OFF=''
-	if (( ${__NS__DEBUGGER_PROPERTIES[color]} == 1 )); then
+	if (( __NS__DEBUGGER_PROPERTIES[color] == 1 )); then
 		LINE_COLOR_ON="$(__NS__get_debugger_color line)"
 		LINE_COLOR_OFF="$(__NS__get_debugger_color line.off)"
 	fi
 	{
 		for (( i=(LINE-CONTEXT); i <= (LINE+CONTEXT); ++i )); do
-			OUT="$(sed "${i}q;d" "$SOURCE")"
-			[[ $? != 0 ]] && OUT="..."
+			OUT="$(sed "${i}q;d" "$SOURCE" || echo '...')"
 			OUT="${OUT%$'\n'}"
 			if (( i == LINE )); then
 				printf '%b%6s> %s%b\n' "${LINE_COLOR_ON}" "$((i))" "$OUT" "${LINE_COLOR_OFF}"
@@ -181,7 +189,7 @@ __NS__list_source_code() {
 }
 
 __NS__get_debugger_color() {
-	if (( ${__NS__DEBUGGER_PROPERTIES[color]} != 1 )); then
+	if (( __NS__DEBUGGER_PROPERTIES[color] != 1 )); then
 		return
 	fi
 	local PROP="$1"
@@ -192,7 +200,7 @@ __NS__get_debugger_color() {
 }
 
 __NS__get_debugger_color_off() {
-	if (( ${__NS__DEBUGGER_PROPERTIES[color]} != 1 )); then
+	if (( __NS__DEBUGGER_PROPERTIES[color] != 1 )); then
 		return
 	fi
 	local PROP="$1"
@@ -212,7 +220,8 @@ __NS__get_debugger_color_off() {
 }
 
 __NS__debugger() {
-		#(( $BASHPID != $__NS__CURRENT_BASHPID )) && return $__NS____EXITCODE__
+	{
+		__NS____EXITCODE__=$?
 		local -i __NS____BREAK__=0
 		local IFS=$' \t\n'
 		set -- "${__NS____CALLER_ARGS__[@]}"
@@ -259,12 +268,15 @@ __NS__debugger() {
 		fi
 
 		if (( __NS____BREAK__ == 0 )); then
-			return $__NS____EXITCODE__
+			return "$__NS____EXITCODE__"
 		fi
 
 		unset __NS____BREAK__
 
-		__NS____CALLER_LOCALS__=( $( echo "$__NS____CALLER_LOCALS__" | while IFS="=" read -r __NS____i__ x; do echo "$__NS____i__"; done) )
+		local __NS____i__
+		# shellcheck disable=SC2128,2034
+		IFS=" " read -r -a __NS____CALLER_LOCALS__ <<< "$( echo "$__NS____CALLER_LOCALS__" | while IFS="=" read -r __NS____i__ x; do echo "$__NS____i__"; done)"
+		unset __NS____i__ __NS____x__
 
 		__NS__get_debugger_color default
 
@@ -285,6 +297,7 @@ __NS__debugger() {
 						;;
 					list)
 						if [[ ${__NS__DEBUGGER_PROPERTIES[list.auto]} == 1 ]]; then
+							# shellcheck disable=2034
 							printf '%bListing %s:%b\n' "$(__NS__get_debugger_color title)" "$(caller 0 | while read -r a b c; do echo "$b() in $c";done;)" "$(__NS__get_debugger_color_off title)"
 							__NS__list_source_code 1
 						fi
@@ -318,16 +331,16 @@ __NS__debugger() {
 			unset __NS____AUTO__
 
 			while :; do # REPL LOOP
-				while read -r -e -p"$(__NS__get_debugger_color prompt)${__NS__STEPMODE_NAMES[__NS__STEPMODE]}>$(__NS__get_debugger_color_off prompt) " -a __NS____REPL__; do
+				while read -r -e -p"$(__NS__get_debugger_color prompt)[$BASHPID]${__NS__STEPMODE_NAMES[__NS__STEPMODE]}>$(__NS__get_debugger_color_off prompt) " -a __NS____REPL__; do
 					case "${__NS____REPL__[0]}" in
-						'\'*) ;;
+						\\*) ;;
 						'') continue 3;;
 						*) ;;
 					esac
 					break
 				done # READ LOOP
 
-				if [[ -z $__NS____REPL__ ]]; then
+				if [[ -z ${__NS____REPL__[0]} ]]; then
 					case "$__NS__STEPMODE" in
 						0) __NS____REPL__=( '\cont'   );;
 						1) __NS____REPL__=( '\step'   );;
@@ -428,14 +441,14 @@ __NS__debugger() {
 									__NS__unset_breakpoint "$SOURCE:$LINE"
 									unset LINE SOURCE
 								else
-									unset __NS__BREAKPOINTS[@]
+									unset '__NS__BREAKPOINTS[@]'
 								fi
 								;;
 							'databreakpoint'|'dp')
 								if (( ${#__NS____REPL__[@]} > 2 )); then
 									__NS__delete_data_breakpoint "${__NS____REPL__[@]:2}"
 								else
-									unset __NS__DATA_BREAKPOINTS[@]
+									unset '__NS__DATA_BREAKPOINTS[@]'
 								fi
 								;;
 							'watch')
@@ -499,7 +512,7 @@ __NS__debugger() {
 						    If no option is given show all options. If a 'value' is given set 'option' to 'value', otherwise show the value of specified option.
 						EOF
 						;;
-					'\'*)
+					\\*)
 						echo "Unknown command: ${__NS____REPL__[0]}"
 						continue # skip saving history
 						;;
@@ -517,8 +530,9 @@ __NS__debugger() {
 			history -s "${__NS____REPL__[@]}"
 			history -w
 			__NS__get_debugger_color_off default
-			return $__NS____EXITCODE__
+			return "$__NS____EXITCODE__"
 		done # AUTO DISPLAY LOOP
+	} <&- 0<&10 1>&11 2>&12
 }
 
 exec 10<&0 11>&1 12>&2 # save stdin, stdout, stderr

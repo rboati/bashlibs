@@ -1,5 +1,6 @@
-#/bin/bash
+#!/bin/bash
 
+# shellcheck disable=SC1091
 source ../libimport.bash
 bash_import ../libipc.bash
 bash_import ../libdebug.bash
@@ -63,3 +64,18 @@ echo "MSG='$MSG'"
 } >&$fdset
 
 wait
+
+
+#With local -n (bash 4.3) we get the full power of everything:
+#	{var[sub]}<file
+#which can be done as well as:
+#	x() {
+#		local -n a="$1" b="$2" c="$3"
+#		exec {a}<&0 {b}>&1 {c}>&2;
+#	}
+# then
+#	declare -A A;
+#	x "A[t1]" "A[t2]" "A[t3]"
+#but it can even do something like {!var}<file which isn't in bash:
+#	x=a1 y=a2 z=a3;
+#	x "$x" "$y" "$z"

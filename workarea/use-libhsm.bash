@@ -1,6 +1,7 @@
-#/bin/bash
+#!/bin/bash
 
 
+# shellcheck disable=SC1091
 source ../libimport.bash
 bash_import libhsm.bash
 
@@ -19,7 +20,7 @@ declare -gra EVENT_NAMES=( A B C D E F G H I )
 state_initial() {
 	printf "topState-INIT;"
 	FOO=0
-	STATE=s2; return $RET_TRAN
+	STATE=s2 && return $RET_TRAN
 }
 
 state_s() {
@@ -36,12 +37,12 @@ state_s() {
 
 		$SIG_INIT)
 			printf "s-INIT;"
-			STATE=s11; return $RET_TRAN
+			STATE=s11 && return $RET_TRAN
 			;;
 
 		$SIG_E)
 			printf "s-E;"
-			STATE=s11; return $RET_TRAN
+			STATE=s11 && return $RET_TRAN
 			;;
 
 		$SIG_I)
@@ -70,22 +71,22 @@ state_s1() {
 
 		$SIG_INIT)
 			printf "s1-INIT;"
-			STATE=s11; return $RET_TRAN
+			STATE=s11 && return $RET_TRAN
 			;;
 
 		$SIG_A)
 			printf "s1-A;"
-			STATE=s1; return $RET_TRAN
+			STATE=s1 && return $RET_TRAN
 			;;
 
 		$SIG_B)
 			printf "s1-B;"
-			STATE=s11; return $RET_TRAN
+			STATE=s11 && return $RET_TRAN
 			;;
 
 		$SIG_C)
 			printf "s1-C;"
-			STATE=s2; return $RET_TRAN
+			STATE=s2 && return $RET_TRAN
 			;;
 
 		$SIG_D)
@@ -95,7 +96,7 @@ state_s1() {
 
 		$SIG_F)
 			printf "s1-F;"
-			STATE=s211; return $RET_TRAN
+			STATE=s211 && return $RET_TRAN
 			;;
 
 		$SIG_I)
@@ -124,18 +125,18 @@ state_s11() {
 			if (( FOO != 0 )); then
 				printf "s11-D;"
 				FOO=0
-				STATE=s1; return $RET_TRAN
+				STATE=s1 && return $RET_TRAN
 			fi
 			;;
 
 		$SIG_G)
 			printf "s11-G;"
-			STATE=s211; return $RET_TRAN
+			STATE=s211 && return $RET_TRAN
 			;;
 
 		$SIG_H)
 			printf "s11-H;"
-			STATE=s; return $RET_TRAN
+			STATE=s && return $RET_TRAN
 			;;
 	esac
 
@@ -156,17 +157,17 @@ state_s2() {
 
 		$SIG_INIT)
 			printf "s2-INIT;"
-			STATE=s211; return $RET_TRAN
+			STATE=s211 && return $RET_TRAN
 			;;
 
 		$SIG_C)
 			printf "s2-C;"
-			STATE=s1; return $RET_TRAN
+			STATE=s1 && return $RET_TRAN
 			;;
 
 		$SIG_F)
 			printf "s2-F;"
-			STATE=s11; return $RET_TRAN
+			STATE=s11 && return $RET_TRAN
 			;;
 
 		$SIG_I)
@@ -195,22 +196,22 @@ state_s21() {
 
 		$SIG_INIT)
 			printf "s21-INIT;"
-			STATE=s211; return $RET_TRAN
+			STATE=s211 && return $RET_TRAN
 			;;
 
 		$SIG_A)
 			printf "s21-A;"
-			STATE=s21; return $RET_TRAN
+			STATE=s21 && return $RET_TRAN
 			;;
 
 		$SIG_B)
 			printf "s21-B;"
-			STATE=s211; return $RET_TRAN
+			STATE=s211 && return $RET_TRAN
 			;;
 
 		$SIG_G)
 			printf "s21-G;"
-			STATE=s1; return $RET_TRAN
+			STATE=s1 && return $RET_TRAN
 			;;
 	esac
 	STATE=s2; return $RET_PARENT
@@ -230,12 +231,12 @@ state_s211() {
 
 		$SIG_D)
 			printf "s211-D;"
-			STATE=s21; return $RET_TRAN
+			STATE=s21 && return $RET_TRAN
 			;;
 
 		$SIG_H)
 			printf "s211-H;"
-			STATE=s; return $RET_TRAN
+			STATE=s && return $RET_TRAN
 			;;
 	esac
 	STATE=s21; return $RET_PARENT
@@ -245,7 +246,7 @@ choice1() {
 	if (( FOO == 0 )); then
 		printf "s1-D;"
 		FOO=1
-		STATE=s; return $RET_TRAN
+		STATE=s && return $RET_TRAN
 	fi
 	return $RET_HANDLED
 }

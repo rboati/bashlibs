@@ -1,4 +1,4 @@
-#/bin/bash
+#!/bin/bash
 
 source "../libimport.bash"
 DEBUG=2 bash_import "../libloglevel.bash"
@@ -24,6 +24,7 @@ inside_function2 () {
 }
 
 inside_function3 () {
+	# shellcheck disable=SC2034
 	local LOGDOMAIN="function3"
 	"echo$SUFFIX" "echo$SUFFIX" "inside function3"
 	"print$SUFFIX" "%s %s" "print$SUFFIX" "inside function3"
@@ -31,13 +32,14 @@ inside_function3 () {
 
 declare -i LEVEL MSGLEVEL
 SUFFIXES=( "${LOGLEVELS[@],,}" )
-unset SUFFIXES[0] # OFF
+unset 'SUFFIXES[0]' # OFF
 
 
-echo LOGLEVELS: ${LOGLEVELS[@]}
+echo "LOGLEVELS: ${LOGLEVELS[*]}"
 for (( LEVEL=0; LEVEL < ${#LOGLEVELS[@]}; ++LEVEL )); do
 	set_loglevel $LEVEL
 
+	# shellcheck disable=SC2153
 	echo -e "\e[1;37mLOGLEVEL=$LOGLEVEL (${LOGLEVELS[$LOGLEVEL]})\e[0m"
 	for MSGLEVEL in "${!SUFFIXES[@]}"; do
 		SUFFIX=${SUFFIXES[$MSGLEVEL]}
@@ -45,13 +47,14 @@ for (( LEVEL=0; LEVEL < ${#LOGLEVELS[@]}; ++LEVEL )); do
 		inside_function1
 		"echo$SUFFIX" "echo$SUFFIX" "outside"
 		"print$SUFFIX" "%s %s" "print$SUFFIX" "outside"
-		ls | LOGDOMAIN=ls log$SUFFIX
+		# shellcheck disable=SC2012
+		ls | LOGDOMAIN='ls' "log$SUFFIX"
 	done
 	echo
 done
 
 for LEVELNAME in "${LOGLEVELS[@]}"; do
-	set_loglevel $LEVELNAME
+	set_loglevel "$LEVELNAME"
 	echo -e "\e[1;37mLOGLEVEL=$LOGLEVEL (${LOGLEVELS[$LOGLEVEL]})\e[0m"
 	for MSGLEVEL in "${!SUFFIXES[@]}"; do
 		SUFFIX=${SUFFIXES[$MSGLEVEL]}
@@ -59,7 +62,8 @@ for LEVELNAME in "${LOGLEVELS[@]}"; do
 		inside_function1
 		"echo$SUFFIX" "echo$SUFFIX" "outside"
 		"print$SUFFIX" "%s %s" "print$SUFFIX" "outside"
-		ls | LOGDOMAIN=ls log$SUFFIX
+		# shellcheck disable=SC2012
+		ls | LOGDOMAIN='ls' "log$SUFFIX"
 	done
 	echo
 done

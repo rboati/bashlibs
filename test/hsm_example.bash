@@ -1,7 +1,7 @@
-#/bin/bash
+#!/bin/bash
 
-
- source ../libimport.bash
+# shellcheck disable=SC1091
+source ../libimport.bash
 bash_import libhsm.bash
 bash_import libdebug.bash
 

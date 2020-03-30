@@ -15,179 +15,185 @@ __NS__state_TOP_STATE() {
 
 __NS__hsm_dispatch() {
 	local __NS____s__
-	local __NS____t__=$__NS__STATE
+	local __NS____t__=$__NS__STATE # save current state
 	local -i __NS____r__
 	local -i __NS____ip__
 	local -i __NS____iq__
 
-	while :; do
+	while :; do # send the event to the currente state, eventually descending into parents
 		__NS____s__=$__NS__STATE
-		__NS__state_$__NS____s__ "${@}"
+		"__NS__state_$__NS____s__" "${@}"
 		__NS____r__=$?
-		(( __NS____r__ == __NS__RET_PARENT )) || break
+		(( __NS____r__ != __NS__RET_PARENT )) && break
 	done
 
-	if (( __NS____r__ == __NS__RET_TRAN )); then
-		__NS____ip__="-1"
+	if (( __NS____r__ != __NS__RET_TRAN )); then
+		__NS__STATE=$__NS____t__ # restore current state
+		return
+	fi
 
-		__NS__HSM_PATH[0]=$__NS__STATE
-		__NS__HSM_PATH[1]=$__NS____t__
+	# we have a transition
+	# here __NS__STATE is the destination state of last transition, as requested by the user
+	# here __NS____t__ is the original source state
+	# here __NS____s__ is the source state of last transition
 
-		while [[ $__NS____t__ != $__NS____s__ ]]; do
-			__NS__state_$__NS____t__ $__NS__SIG_EXIT
-			if (( $? == __NS__RET_HANDLED )); then
-				__NS__state_$__NS____t__ $__NS__SIG_EMPTY
-			fi
-			__NS____t__=$__NS__STATE
-		done
-		__NS____t__=${__NS__HSM_PATH[0]}
+	__NS____ip__="-1"
+	__NS__HSM_PATH[0]=$__NS__STATE
+	__NS__HSM_PATH[1]=$__NS____t__
 
-		if [[ $__NS____s__ == $__NS____t__ ]]; then
-			__NS__state_$__NS____s__ $__NS__SIG_EXIT
+	while [[ $__NS____t__ != "$__NS____s__" ]]; do
+		"__NS__state_$__NS____t__" $__NS__SIG_EXIT
+		if (( $? == __NS__RET_HANDLED )); then
+			"__NS__state_$__NS____t__" $__NS__SIG_EMPTY
+		fi
+		__NS____t__=$__NS__STATE
+	done
+	__NS____t__=${__NS__HSM_PATH[0]}
+
+	if [[ $__NS____s__ == "$__NS____t__" ]]; then
+		"__NS__state_$__NS____s__" $__NS__SIG_EXIT
+		__NS____ip__=0
+	else
+		"__NS__state_$__NS____t__" $__NS__SIG_EMPTY
+		__NS____t__=$__NS__STATE;
+		if [[ $__NS____s__ == "$__NS____t__" ]]; then
 			__NS____ip__=0
 		else
-			__NS__state_$__NS____t__ $__NS__SIG_EMPTY
-			__NS____t__=$__NS__STATE;
-			if [[ $__NS____s__ == $__NS____t__ ]]; then
+			"__NS__state_$__NS____s__" $__NS__SIG_EMPTY
+			if [[ $__NS__STATE == "$__NS____t__" ]]; then
+				"__NS__state_$__NS____s__" $__NS__SIG_EXIT
 				__NS____ip__=0
 			else
-				__NS__state_$__NS____s__ $__NS__SIG_EMPTY
-				if [[ $__NS__STATE == $__NS____t__ ]]; then
-					__NS__state_$__NS____s__ $__NS__SIG_EXIT
-					__NS____ip__=0
+				if [[ $__NS__STATE == "${__NS__HSM_PATH[0]}" ]]; then
+					"__NS__state_$__NS____s__" $__NS__SIG_EXIT
 				else
-					if [[ $__NS__STATE == ${__NS__HSM_PATH[0]} ]]; then
-						__NS__state_$__NS____s__ $__NS__SIG_EXIT
-					else
-						__NS____iq__=0
-						__NS____ip__=1
-						__NS__HSM_PATH[1]=$__NS____t__
-						__NS____t__=$__NS__STATE
-						__NS__state_${__NS__HSM_PATH[1]} $__NS__SIG_EMPTY
-						__NS____r__=$?
-						while (( __NS____r__ == __NS__RET_PARENT )); do
-							let ++__NS____ip__;
-							__NS__HSM_PATH[$__NS____ip__]=$__NS__STATE
-							if [[ $__NS__STATE == $__NS____s__ ]]; then
-								__NS____iq__=1
-								# assert __NS____ip__ < MAX_NEST_DEPTH;
-								let --__NS____ip__
-								__NS____r__=$__NS__RET_HANDLED
-							else
-								__NS__state_$__NS__STATE $__NS__SIG_EMPTY
-								__NS____r__=$?
-							fi
-						done
-						if (( __NS____iq__ == 0 )); then
+					__NS____iq__=0
+					__NS____ip__=1
+					__NS__HSM_PATH[1]=$__NS____t__
+					__NS____t__=$__NS__STATE
+					"__NS__state_${__NS__HSM_PATH[1]}" $__NS__SIG_EMPTY
+					__NS____r__=$?
+					while (( __NS____r__ == __NS__RET_PARENT )); do
+						(( ++__NS____ip__ ))
+						__NS__HSM_PATH[$__NS____ip__]=$__NS__STATE
+						if [[ $__NS__STATE == "$__NS____s__" ]]; then
+							__NS____iq__=1
 							# assert __NS____ip__ < MAX_NEST_DEPTH;
-							__NS__state_$__NS____s__ $__NS__SIG_EXIT
-							__NS____iq__=$__NS____ip__
+							(( --__NS____ip__ ))
+							__NS____r__=$__NS__RET_HANDLED
+						else
+							"__NS__state_$__NS__STATE" $__NS__SIG_EMPTY
+							__NS____r__=$?
+						fi
+					done
+					if (( __NS____iq__ == 0 )); then
+						# assert __NS____ip__ < MAX_NEST_DEPTH;
+						"__NS__state_$__NS____s__" $__NS__SIG_EXIT
+						__NS____iq__=$__NS____ip__
+						__NS____r__=$__NS__RET_IGNORED
+						while :; do
+							if [[ $__NS____t__ == "${__NS__HSM_PATH[$__NS____iq__]}" ]]; then
+								__NS____r__=$__NS__RET_HANDLED
+								((__NS____ip__=__NS____iq__-1 ))
+								__NS____iq__=-1
+							else
+								(( --__NS____iq__ ))
+							fi
+							(( __NS____iq__ >= 0 )) || break
+						done
+						if (( __NS____r__ != __NS__RET_HANDLED )); then
 							__NS____r__=$__NS__RET_IGNORED
 							while :; do
-								if [[ $__NS____t__ == ${__NS__HSM_PATH[$__NS____iq__]} ]]; then
-									__NS____r__=$__NS__RET_HANDLED
-									let __NS____ip__=__NS____iq__-1
-									__NS____iq__=-1
-								else
-									let --__NS____iq__
+								"__NS__state_$__NS____t__" $__NS__SIG_EXIT
+								if (( $? == __NS__RET_HANDLED )); then
+									"__NS__state_$__NS____t__" $__NS__SIG_EMPTY
 								fi
-								(( __NS____iq__ >= 0 )) || break
-							done
-							if (( __NS____r__ != __NS__RET_HANDLED )); then
-								__NS____r__=$__NS__RET_IGNORED
+								__NS____t__=$__NS__STATE
+								__NS____iq__=$__NS____ip__
 								while :; do
-									__NS__state_$__NS____t__ $__NS__SIG_EXIT
-									if (( $? == __NS__RET_HANDLED )); then
-										__NS__state_$__NS____t__ $__NS__SIG_EMPTY
+									if [[ $__NS____t__ == "${__NS__HSM_PATH[$__NS____iq__]}" ]]; then
+										(( __NS____ip__=__NS____iq__-1 ))
+										__NS____iq__=-1
+										__NS____r__=$__NS__RET_HANDLED
+									else
+										(( --__NS____iq__ ))
 									fi
-									__NS____t__=$__NS__STATE
-									__NS____iq__=$__NS____ip__
-									while :; do
-										if [[ $__NS____t__ == ${__NS__HSM_PATH[$__NS____iq__]} ]]; then
-											let __NS____ip__=__NS____iq__-1
-											__NS____iq__=-1
-											__NS____r__=$__NS__RET_HANDLED
-										else
-											let --__NS____iq__
-										fi
-										(( __NS____iq__ >= 0 )) || break
-									done
-									(( __NS____r__ != __NS__RET_HANDLED )) || break
+									(( __NS____iq__ >= 0 )) || break
 								done
-							fi
+								(( __NS____r__ != __NS__RET_HANDLED )) || break
+							done
 						fi
 					fi
 				fi
 			fi
 		fi
+	fi
 
-		for (( ; __NS____ip__ >= 0; --__NS____ip__ )); do
-			__NS__state_${__NS__HSM_PATH[$__NS____ip__]} $__NS__SIG_ENTRY
+	for (( ; __NS____ip__ >= 0; --__NS____ip__ )); do
+		"__NS__state_${__NS__HSM_PATH[$__NS____ip__]}" $__NS__SIG_ENTRY
+	done
+
+	__NS____t__=${__NS__HSM_PATH[0]}
+	__NS__STATE=$__NS____t__
+	while :; do
+		"__NS__state_$__NS____t__" $__NS__SIG_INIT
+		(( $? == __NS__RET_TRAN )) || break
+		__NS____ip__=0
+		__NS__HSM_PATH[0]=$__NS__STATE
+		"__NS__state_$__NS__STATE" $__NS__SIG_EMPTY
+		while [[ $__NS__STATE != "$__NS____t__" ]]; do
+			(( ++__NS____ip__ ))
+			__NS__HSM_PATH[$__NS____ip__]=$__NS__STATE
+			"__NS__state_$__NS__STATE" $__NS__SIG_EMPTY
+		done
+		__NS__STATE=${__NS__HSM_PATH[0]}
+		while :; do
+			"__NS__state_${__NS__HSM_PATH[$__NS____ip__]}" $__NS__SIG_ENTRY
+			(( --__NS____ip__ ))
+			(( __NS____ip__ >= 0 )) || break
 		done
 		__NS____t__=${__NS__HSM_PATH[0]}
-		__NS__STATE=$__NS____t__
-		while :; do
-			__NS__state_$__NS____t__ $__NS__SIG_INIT
-			(( $? == __NS__RET_TRAN )) || break
-			__NS____ip__=0
-			__NS__HSM_PATH[0]=$__NS__STATE
-			__NS__state_$__NS__STATE $__NS__SIG_EMPTY
-			while [[ $__NS__STATE != $__NS____t__ ]]; do
-				let ++__NS____ip__
-				__NS__HSM_PATH[$__NS____ip__]=$__NS__STATE
-				__NS__state_$__NS__STATE $__NS__SIG_EMPTY
-			done
-			__NS__STATE=${__NS__HSM_PATH[0]}
-			# assert __NS____ip__ < MAX_NEST_DEPTH;
-			while :; do
-				__NS__state_${__NS__HSM_PATH[$__NS____ip__]} $__NS__SIG_ENTRY
-				let --__NS____ip__
-				(( __NS____ip__ >= 0 )) || break
-			done
-			__NS____t__=${__NS__HSM_PATH[0]}
-		done
-	fi
+	done
+
 	__NS__STATE=$__NS____t__
 }
 
 __NS__hsm_throw_error() {
-	exit -1
+	exit 255
 }
 
 __NS__hsm_init() {
-	local initialState="$1"
+	__NS__STATE=$1
 	shift
-	__NS__STATE=$initialState
 	if [[ -z $2 ]]; then
-		__NS__state_$__NS__STATE $__NS__SIG_INIT
+		"__NS__state_$__NS__STATE" $__NS__SIG_INIT
 	else
-		__NS__state_$__NS__STATE "$@"
+		"__NS__state_$__NS__STATE" "$@"
 	fi
 	if (( $? != __NS__RET_TRAN )); then
 		__NS__hsm_throw_error
 	fi
-	local t=TOP_STATE
+	local __NS____t__=TOP_STATE
 	while :; do
 		local __NS____ip__=0
 		__NS__HSM_PATH[0]=$__NS__STATE
-		__NS__state_$__NS__STATE $__NS__SIG_EMPTY
-		while [[ $__NS__STATE != $t ]]; do
-			let ++__NS____ip__
+		while :; do # create full path from childs to parents
+			"__NS__state_$__NS__STATE" $__NS__SIG_EMPTY
+			[[ $__NS__STATE == "$__NS____t__" ]] && break
+			(( ++__NS____ip__ ))
 			__NS__HSM_PATH[$__NS____ip__]=$__NS__STATE
-			__NS__state_$__NS__STATE $__NS__SIG_EMPTY
 		done
 		__NS__STATE=${__NS__HSM_PATH[0]}
-		# assert __NS____ip__ < MAX_NEST_DEPTH;
-		while :; do
-			__NS__state_${__NS__HSM_PATH[$__NS____ip__]} $__NS__SIG_ENTRY
-			let --__NS____ip__
-			(( __NS____ip__ >= 0 )) || break
+		while :; do # execute entry actiions from parents to childs
+			"__NS__state_${__NS__HSM_PATH[$__NS____ip__]}" $__NS__SIG_ENTRY
+			(( --__NS____ip__ ))
+			(( __NS____ip__ < 0 )) && break
 		done
-		t=${__NS__HSM_PATH[0]}
-		__NS__state_$t $__NS__SIG_INIT
-		(( $? == __NS__RET_TRAN )) || break
+		__NS____t__=${__NS__HSM_PATH[0]}
+		"__NS__state_$__NS____t__" $__NS__SIG_INIT
+		(( $? != __NS__RET_TRAN )) && break
 	done
-	__NS__STATE=$t
+	__NS__STATE=$__NS____t__
 }
 
 __NS__hsm_instrument() {
@@ -209,7 +215,7 @@ __NS__hsm_instrument() {
 					echo "local -a __NS__HSM_PATH=()"
 					exec cat
 				fi
-				let ++i
+				(( ++i ))
 			done
 		)
 	fi

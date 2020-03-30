@@ -1,6 +1,6 @@
-#/bin/bash
+#!/bin/bash
 
-
+# shellcheck disable=SC1091
 source ../libimport.bash
 DEBUG=1 bash_import ../libtest.bash
 

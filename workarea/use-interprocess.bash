@@ -1,5 +1,6 @@
-#/bin/bash
+#!/bin/bash
 
+# shellcheck disable=SC1091
 source ../libimport.bash
 bash_import ../libipc.bash
 
@@ -35,7 +36,7 @@ player() {
 		case "$msg" in
 			ping)
 				if (( RANDOM % 5 == 0 )); then
-					let ++mysmashes
+					(( ++mysmashes ))
 					answer="smash"
 					log "$player" "$answer" "Take that!"
 				else
@@ -46,7 +47,7 @@ player() {
 				;;
 			pong)
 				if (( RANDOM % 3 == 0 )); then
-					let ++mysmashes
+					(( ++mysmashes ))
 					answer="smash"
 					log "$player" "$answer" "Too easy, take that!"
 				else
@@ -67,7 +68,7 @@ player() {
 			smash)
 				if (( RANDOM % 3 == 0 )); then
 					answer="miss"
-					let ++hispoints
+					(( ++hispoints ))
 					if (( hispoints >= win && (((delta=hispoints-mypoints)>0)?delta:-delta) >= diff )); then
 						answer="miss"
 						log "$player" "lost" "I lost! Final score is $mypoints to $hispoints, I had $(plural $mymatchpoints matchpoint), I made $(plural $mysaves save) and I smashed $(plural $mysmashes time)"
@@ -75,33 +76,34 @@ player() {
 						exit 1
 					fi
 					if ((mypoints > hispoints && mypoints >= (win-1) && mypoints >= 4 )); then
-						let ++mymatchpoints
+						(( ++mymatchpoints ))
 					fi
 					log "$player" "miss" "Ouch!"
 				else
-					let ++mysaves
+					(( ++mysaves ))
 					answer="pong"
 					log "$player" "pong" "Whew!"
 				fi
 				send "$answer"
 				;;
 			miss)
-				let ++mypoints
+				(( ++mypoints ))
 				if (( mypoints >= win && (((delta=hispoints-mypoints)>0)?delta:-delta) >= diff )); then
 					log "$player" "won" "I won! Final score is $mypoints to $hispoints, I had $(plural $mymatchpoints matchpoint), I made $(plural $mysaves save) and I smashed $(plural $mysmashes time)"
 					exit 0
 				fi
 				answer="serve"
 				if ((mypoints > hispoints && mypoints >= (win-1) && mypoints >= 4 )); then
-					let ++mymatchpoints
-					let matchpoints=mypoints-hispoints
+					(( ++mymatchpoints ))
+					(( matchpoints=mypoints-hispoints ))
 					log "$player" "serve" "Score is $mypoints to $hispoints, I have $(plural $matchpoints matchpoint)!"
 				elif ((mypoints < hispoints && hispoints >= (win-1) && hispoints >= 4 )); then
-					let matchpoints=hispoints-mypoints
+					(( matchpoints=hispoints-mypoints ))
 					log "$player" "serve" "Score is $mypoints to $hispoints, You have $(plural $matchpoints matchpoint)!"
 				else
 					log "$player" "serve" "Score is $mypoints to $hispoints"
 				fi
+				sleep 1
 				send "$answer"
 				;;
 			quit)
@@ -112,14 +114,15 @@ player() {
 				exit 2
 				;;
 		esac
-		sleep $( (((RANDOM % 2) == 0)) && echo "0.5" || echo "1" )
+		#sleep $( (((RANDOM % 2) == 0)) && echo "0.5" || echo "1" )
+		sleep 0.$((RANDOM % 10))
 	done
 }
 
 
 
 
-IPC_TYPE=unnamedfifo
+IPC_TYPE=pipe
 
 case "$IPC_TYPE" in
 fifo)
@@ -144,10 +147,10 @@ unnamedfifo)
 	wait
 	;;
 pipe)
-	: {fdin1}> /dev/null {fdout1}> /dev/null
-	mkunamedfifo $fdin1 $fdout1
+
+	mkpipe $fdin1 $fdout1: {fdin1}> /dev/null {fdout1}> /dev/null
 	: {fdin2}> /dev/null {fdout2}> /dev/null
-	mkunamedfifo $fdin2 $fdout2
+	mkpipe $fdin2 $fdout2
 
 	trap 'echo quit >&$fdout1; echo quit >&$fdout2; eval "exec $fdin1<&- $fdout1>&- $fdin2<&- $fdout2>&-"' SIGINT
 	( player Bob <& $fdin2  >& $fdout1 ) &

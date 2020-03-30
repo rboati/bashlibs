@@ -29,7 +29,7 @@ __NS__loglevel_filter() {
 __NS__generate_log_functions() {
 	local -i loglevel="${1:-$__NS__LOGLEVEL_DEFAULT}"
 	local -a suffixes=( "${__NS__LOGLEVELS[@],,}" )
-	unset suffixes[0]
+	unset 'suffixes[0]'
 	local -i level fd
 	local suffix
 	local level_name
@@ -37,7 +37,7 @@ __NS__generate_log_functions() {
 	local template
 
 	for (( level=0; level<${#__NS__LOGLEVELS[@]}; ++level)); do
-		let fd=100+level
+		(( fd=100+level ))
 		eval "exec ${fd}>&-"
 	done
 
@@ -49,12 +49,12 @@ __NS__generate_log_functions() {
 		declare __NS__LOGSINK='1>&2'
 	fi
 
-	for level in ${!suffixes[@]}; do
+	for level in "${!suffixes[@]}"; do
 		suffix=${suffixes[$level]}
 		level_name="${__NS__LOGLEVELS[$level]}"
-		let fd=100+level
+		(( fd=100+level ))
 
-		if (( $__NS__LOGCOLOR == 1 )); then
+		if (( __NS__LOGCOLOR == 1 )); then
 			color="${__NS__LOGCOLORS[$level]}"
 			[[ -z $color ]] && color='0'
 			color="\e[${color}m"
@@ -99,6 +99,7 @@ __NS__generate_log_functions() {
 			)
 		fi
 		eval "$template"
+		# shellcheck disable=SC2034
 		declare -gi __NS__LOGLEVEL="$loglevel"
 	done
 }

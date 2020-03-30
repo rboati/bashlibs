@@ -2,14 +2,14 @@
 # $1: varname
 # $2: (optional). string with char to trim, by default "[:space:]"
 __NS__ltrim() {
-	eval "$var=\"\${$1#\"\${$1%%[!${2:-[:space:]}]*}\"}\""
+	eval "$1=\"\${$1#\"\${$1%%[!${2:-[:space:]}]*}\"}\""
 }
 
 
 # $1: varname
 # $2: (optional). string with char to trim, by default "[:space:]"
 __NS__rtrim() {
-	eval "$var=\"\${$1%\"\${$1##*[!${2:-[:space:]}]}\"}\""
+	eval "$1=\"\${$1%\"\${$1##*[!${2:-[:space:]}]}\"}\""
 }
 
 
@@ -33,7 +33,7 @@ __NS__join_array_v() {
 	local VAROUT="$1"
 	local VARNAME="$2"
 	local SEP="$3"
-	eval "printf -v $VAROUT \"%s${SEP}\" \"\${$VARNAME[@]}\""
+	eval "printf -v $VAROUT \"%s${SEP}\" \"\${${VARNAME}[@]}\""
 	eval "printf -v $VAROUT '%s' \"\${$VAROUT%\$'$SEP'}\""
 }
 
@@ -49,6 +49,7 @@ __NS__join_array() {
 __NS__generate_prefix_filter() {
 	local NAME="$1"
 	local PREFIX="$2"
+	# shellcheck disable=SC2155
 	local TEMPLATE="$(cat <<- EOF
 		$NAME() {
 			local LINE

@@ -1,4 +1,5 @@
-#/bin/bash
+#!/bin/bash
+# shellcheck disable=SC2034
 
 # Which is faster?
 # indexed array expansion vs indirect expansion.
@@ -34,9 +35,9 @@ declare -r  LOGLEVEL_COLOR_6='1'
 
 declare -i i j LEVEL LOOP_1=100 LOOP_2=1000
 time {
-	for ((i=0; i<$LOOP_1; ++i )); do
+	for ((i=0; i < LOOP_1; ++i )); do
 		for (( LEVEL=0; LEVEL<7; ++LEVEL )); do
-			for ((j=0; j<$LOOP_2; ++j )); do
+			for ((j=0; j < LOOP_2; ++j )); do
 				NAME=${LOGLEVELS[$LEVEL]}
 				COLOR=${LOGCOLORS[$LEVEL]}
 			done
@@ -45,11 +46,11 @@ time {
 } > /dev/null
 
 time {
-	for ((i=0; i<$LOOP_1; ++i )); do
+	for ((i=0; i < LOOP_1; ++i )); do
 		for (( LEVEL=0; LEVEL<7; ++LEVEL )); do
 			VARNAME="LOGLEVEL_NAME_$LEVEL"
 			VARCOLOR="LOGLEVEL_COLOR_$LEVEL"
-			for ((j=0; j<$LOOP_2; ++j )); do
+			for ((j=0; j < LOOP_2; ++j )); do
 				NAME=${!VARNAME}
 				COLOR=${!VARCOLOR}
 			done

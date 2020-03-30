@@ -79,6 +79,7 @@ declare -gA __NS__COLORS256=(
 	[lightcyan]=14
 	[white]=15
 )
+# shellcheck disable=SC2034
 declare -gA __NS__COLORS16M=(
 	[black]='0;0;0'
 	[red]='255;0;0'
@@ -108,13 +109,15 @@ __NS__convert_rgb_to_palette256() {
 __NS__convert_palette_to_rgb256() {
 	declare -i color=$(( $1 % 256 ))
 	if (( i < 16 )); then
-		return '0;0;0'
+		printf '0;0;0'
+		return
 	elif (( i > 231 )); then
-		return '255;255;255'
+		printf '255;255;255'
+		return
 	fi
-    declare -i r=$(( (color-16) / 36 ))
-    declare -i g=$(( ( (color-16) % 36) / 6 ))
-    declare -i b=$(( (color-16) % 6 ))
+	declare -i r=$(( (color-16) / 36 ))
+	declare -i g=$(( ( (color-16) % 36) / 6 ))
+	declare -i b=$(( (color-16) % 6 ))
 	printf '%d;%d;%d' $r $g $b
 }
 
@@ -122,7 +125,7 @@ __NS__set_text_attr() {
 	declare ansi='' arg attr code
 	declare -a attrs
 	for arg in "$@"; do
-		IFS=':;, ' attrs=( $arg )
+		IFS=':;, ' read -r -a attrs <<< "$arg"
 		for attr in "${attrs[@]}"; do
 			code="${__NS__TEXT_ATTRS[$attr]}"
 			[[ -n $code ]] && ansi+="$code;"
@@ -135,7 +138,7 @@ __NS__unset_text_attr() {
 	declare ansi='' arg attr code
 	declare -a attrs
 	for arg in "$@"; do
-		IFS=':;, ' attrs=( $arg )
+		IFS=':;, ' read -r -a attrs <<< "$arg"
 		for attr in "${attrs[@]}"; do
 			code="${__NS__TEXT_ATTRS_UNSET[$attr]}"
 			[[ -n $code ]] && ansi+="$code;"
@@ -167,7 +170,7 @@ __NS__set_color16() {
 		fi
 	fi
 	for arg in "$@"; do
-		IFS=':;, ' attrs=( $arg )
+		IFS=':;, ' read -r -a attrs <<< "$arg"
 		for attr in "${attrs[@]}"; do
 			code="${__NS__TEXT_ATTRS[$attr]}"
 			[[ -n $code ]] && ansi+="$code;"
@@ -201,7 +204,7 @@ __NS__set_color256() {
 		fi
 	fi
 	for arg in "$@"; do
-		IFS=':;, ' attrs=( $arg )
+		IFS=':;, ' read -r -a attrs <<< "$arg"
 		for attr in "${attrs[@]}"; do
 			code="${__NS__TEXT_ATTRS[$attr]}"
 			[[ -n $code ]] && ansi+="$code;"
@@ -214,17 +217,17 @@ __NS__set_color16m() {
 	declare FG="$1"
 	declare BG="$2"
 	declare ansi='' arg attr code
-	declare -i i j
+	declare -i i
 	declare -a rgb attrs
 	shift 2
-	IFS=':;, ' rgb=( $FG )
+	IFS=':;, ' read -r -a rgb <<< "$FG"
 	if (( ${#rgb[@]} == 3 )); then
 		ansi+="38;2;"
 		for i in "${rgb[@]}"; do
 			ansi+="$(( i % 256 ));"
 		done
 	fi
-	IFS=':;, ' rgb=( $BG )
+	IFS=':;, ' read -r -a rgb <<< "$BG"
 	if (( ${#rgb[@]} == 3 )); then
 		ansi+="48;2;"
 		for i in "${rgb[@]}"; do
@@ -232,7 +235,7 @@ __NS__set_color16m() {
 		done
 	fi
 	for arg in "$@"; do
-		IFS=':;, ' attrs=( $arg )
+		IFS=':;, ' read -r -a attrs <<< "$arg"
 		for attr in "${attrs[@]}"; do
 			code="${__NS__TEXT_ATTRS[$attr]}"
 			[[ -n $code ]] && ansi+="$code;"
@@ -250,7 +253,7 @@ __NS__unset_color() {
 	[[ -n $FG ]] && ansi+="39;"
 	[[ -n $BG ]] && ansi+="49;"
 	for arg in "$@"; do
-		IFS=':;, ' attrs=( $arg )
+		IFS=':;, ' read -r -a attrs <<< "$arg"
 		for attr in "${attrs[@]}"; do
 			code="${__NS__TEXT_ATTRS_UNSET[$attr]}"
 			[[ -n $code ]] && ansi+="$code;"
@@ -265,18 +268,21 @@ __NS__unset_color() {
 
 __NS__printf16() {
 	__NS__set_color16 "$__NS__FG" "$__NS__BG" "$__NS__ATTR"
+	# shellcheck disable=SC2059
 	printf "$@"
 	__NS__unset_color "$__NS__FG" "$__NS__BG" "$__NS__ATTR"
 }
 
 __NS__printf256() {
 	__NS__set_color256 "$__NS__FG" "$__NS__BG" "$__NS__ATTR"
+	# shellcheck disable=SC2059
 	printf "$@"
 	__NS__unset_color "$__NS__FG" "$__NS__BG" "$__NS__ATTR"
 }
 
 __NS__printf16m() {
 	__NS__set_color16m "$__NS__FG" "$__NS__BG" "$__NS__ATTR"
+	# shellcheck disable=SC2059
 	printf "$@"
 	__NS__unset_color "$__NS__FG" "$__NS__BG" "$__NS__ATTR"
 }
@@ -294,48 +300,48 @@ __NS__contrast_color16() {
 # Bash only does integer division, so keep it integral
 __NS__contrast_color256() {
 	declare -i color=$(( $1 % 256 ))
-    declare -i r g b luminance
+	declare -i r g b luminance
 
-    if (( color < 16 )); then # Initial 16 ANSI colors
+	if (( color < 16 )); then # Initial 16 ANSI colors
 		__NS__contrast_color16 $color
-        return
-    fi
+		return
+	fi
 
-    # Greyscale # rgb_R = rgb_G = rgb_B = (number - 232) * 10 + 8
-    if (( color > 231 )); then # Greyscale ramp
-        if (( color < 244 )); then
+	# Greyscale # rgb_R = rgb_G = rgb_B = (number - 232) * 10 + 8
+	if (( color > 231 )); then # Greyscale ramp
+		if (( color < 244 )); then
 			printf 15
 		else
 			printf 0
 		fi
-        return
-    fi
+	return
+	fi
 
-    # All other colors:
-    # 6x6x6 color cube = 16 + 36*R + 6*G + B  # Where RGB are [0..5]
-    # See http://stackoverflow.com/a/27165165/5353461
+	# All other colors:
+	# 6x6x6 color cube = 16 + 36*R + 6*G + B  # Where RGB are [0..5]
+	# See http://stackoverflow.com/a/27165165/5353461
 
-    r=$(( (color - 16) / 36 ))
-    g=$(( ( (color - 16) % 36 ) / 6 ))
-    b=$(( (color - 16) % 6 ))
+	r=$(( (color - 16) / 36 ))
+	g=$(( ( (color - 16) % 36 ) / 6 ))
+	b=$(( (color - 16) % 6 ))
 
-    # If luminance is bright, print number in black, white otherwise.
-    # Green contributes 587/1000 to human perceived luminance - ITU R-REC-BT.601
+	# If luminance is bright, print number in black, white otherwise.
+	# Green contributes 587/1000 to human perceived luminance - ITU R-REC-BT.601
 	#if (( g > 2)); then
 	#	printf 0
 	#else
 	#	printf 15
 	#fi
-    #return
+	#return
 
-    # Uncomment the below for more precise luminance calculations
+	# Uncomment the below for more precise luminance calculations
 
-    # Calculate percieved brightness
-    # See https://www.w3.org/TR/AERT#color-contrast
-    # and http://www.itu.int/rec/R-REC-BT.601
-    # Luminance is in range 0..5000 as each value is 0..5
-    luminance=$(( (r * 299) + (g * 587) + (b * 114) ))
-    if (( luminance > 2500 )); then
+	# Calculate percieved brightness
+	# See https://www.w3.org/TR/AERT#color-contrast
+	# and http://www.itu.int/rec/R-REC-BT.601
+	# Luminance is in range 0..5000 as each value is 0..5
+	luminance=$(( (r * 299) + (g * 587) + (b * 114) ))
+	if (( luminance > 2500 )); then
 		printf 0
 	else
 		printf 15
@@ -347,7 +353,7 @@ __NS__contrast_color16m() {
 	declare -i g=$(( $2 % 256 ))
 	declare -i b=$(( $3 % 256 ))
 	declare -i luminance=$(( (r * 299) + (g * 587) + (b * 114) ))
-    if (( luminance > 127500 )); then
+	if (( luminance > 127500 )); then
 		printf '0;0;0'
 	else
 		printf '255;255;255'
@@ -406,7 +412,7 @@ __NS__image16m() {
 	declare col row alpha red green blue X
 
 	convert -thumbnail "$GEOMETRY" -define txt:compliance=SVG "$FILE" txt:- | {
-		while IFS=',:() ' read col row alpha red green blue X; do
+		while IFS=',:() ' read -r col row alpha red green blue X; do
 			if [[ $col == "#" ]]; then
 				continue
 			fi
@@ -420,7 +426,7 @@ __NS__image16m() {
 				break
 			fi
 		done
-		while IFS=',:() ' read col row alpha red green blue X; do
+		while IFS=',:() ' read -r col row alpha red green blue X; do
 			rgb="${red};${green};${blue}"
 			if (( (row % 2) == 0 )); then
 				upper[$col]="$rgb"
@@ -454,12 +460,13 @@ __NS__image256() {
 	declare col row alpha red green blue X
 
 	convert -thumbnail "$GEOMETRY" -define txt:compliance=SVG "$FILE" txt:- | {
-		while IFS=',:() ' read col row alpha red green blue X; do
+		while IFS=',:() ' read -r col row alpha red green blue X; do
 			if [[ $col == "#" ]]; then
 				continue
 			fi
-			color="$(__NS__convert_rgb_to_palette256 ${red} ${green} ${blue})"
+			color="$(__NS__convert_rgb_to_palette256 "${red}" "${green}" "${blue}")"
 			if (( row == 0 )); then
+				# shellcheck disable=SC2034
 				prev_col=col
 				upper[$col]="$color"
 			else
@@ -468,8 +475,9 @@ __NS__image256() {
 				break
 			fi
 		done
-		while IFS=',:() ' read col row alpha red green blue X; do
-			color="$(__NS__convert_rgb_to_palette256 ${red} ${green} ${blue})"
+		# shellcheck disable=SC2034
+		while IFS=',:() ' read -r col row alpha red green blue X; do
+			color="$(__NS__convert_rgb_to_palette256 "${red}" "${green}" "${blue}")"
 			if (( (row % 2) == 0 )); then
 				upper[$col]="$color"
 			else
@@ -500,9 +508,9 @@ __NS__demo_text_attributes() {
 	for (( i=0; i < ${#attrs[@]}; ++i )); do
 		attr=${attrs[$i]}
 		printf '['
-		__NS__set_text_attr $attr
-		printf '%s' $attr
-		__NS__unset_text_attr $attr
+		__NS__set_text_attr "$attr"
+		printf '%s' "$attr"
+		__NS__unset_text_attr "$attr"
 		printf '] '
 	done
 	echo
@@ -521,11 +529,11 @@ __NS__demo_color256() {
 	#	FG=$(__NS__contrast_color256 $i) BG=$i __NS__printf256 ' %3d ' $i
 	#	if (( (c % 108) == 0 )); then
 	#		let i=i+1
-   	#	 	__NS__unset_color
+	#	 	__NS__unset_color
 	#		echo
 	#	elif (( (c % 18) == 0 )); then
 	#		let i=i-71
-   	#	 	__NS__unset_color
+	#	 	__NS__unset_color
 	#		echo
 	#	elif (( (c % 6) == 0 )); then
 	#		let i=i+31
@@ -539,7 +547,7 @@ __NS__demo_color256() {
 	#	FG=$(__NS__contrast_color256 $i) BG=$i __NS__printf256 ' %3d ' $i
 	#	if (( (c % 36) == 0 )); then
 	#		let i=i-179
-   	#	 	__NS__unset_color
+	#	 	__NS__unset_color
 	#		echo
 	#	elif (( (c % 18) == 0 )); then
 	#		let i=i+31
@@ -550,19 +558,19 @@ __NS__demo_color256() {
 	#	fi
 	#done
 
-	let i=16
+	(( i = 16 ))
 	for c in {1..216}; do
 		FG=$(__NS__contrast_color256 $i) BG=$i __NS__printf256 ' %3d ' $i
 		if (( (c % 108) == 0 )); then
-			let i=i-179
+			(( i = i - 179 ))
    		 	__NS__unset_color
 			echo
 		elif (( (c % 18) == 0 )); then
-			let i=i+19
+			(( i=i+19 ))
    		 	__NS__unset_color
 			echo
 		else
-			let i=i+1
+			(( i=i+1 ))
 		fi
 	done
 
@@ -603,10 +611,10 @@ __NS__demo_color16m() {
 	echo
 
 	for i in {0..255}; do
-		let h=$i/43
-		let f=$i-43*h
-		let t=f*255/43
-		let q=255-t
+		(( h=i/43 ))
+		(( f=i-43*h ))
+		(( t=f*255/43 ))
+		(( q=255-t ))
 
 		if   (( h == 0 )); then BGCOLOR="255,$t,0"
 		elif (( h == 1 )); then BGCOLOR="$q,255,0"

@@ -1,9 +1,10 @@
 
+
 __NS__generate_assert_functions() {
 	if [[ -z $ASSERT || $ASSERT == 1 ]]; then
 		__NS__assert() {
 			declare -i EXIT_CODE=$?
-			declare arg FILE FUNC LINE
+			declare FILE FUNC LINE
 			{
 				if (( $# == 0 )); then
 					FILE="${BASH_SOURCE[1]}"
@@ -18,7 +19,7 @@ __NS__generate_assert_functions() {
 					FUNC="${FUNCNAME[1]}"
 					LINE="${BASH_LINENO[0]}"
 					printf 'Assert: "%s" in %s() [%s:%d]\n' "$*" "$FUNC" "$FILE" "$LINE" 1>&2
-					exit -1
+					exit 255
 				fi
 			} 1>&2
 			return $EXIT_CODE

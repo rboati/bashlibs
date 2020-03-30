@@ -4,6 +4,7 @@
 # libcolor.bash
 # convert (imagemagik)
 
+# shellcheck disable=SC1090
 source "$__DIR__/libimport.bash"
 bash_import "./libcolor.bash" __NS__
 
@@ -16,7 +17,7 @@ __NS__image16m() {
 	declare col row alpha red green blue X
 
 	convert -thumbnail "$GEOMETRY" -define txt:compliance=SVG "$FILE" txt:- | {
-		while IFS=',:() ' read col row alpha red green blue X; do
+		while IFS=',:() ' read -r col row alpha red green blue X; do
 			if [[ $col == "#" ]]; then
 				continue
 			fi
@@ -30,7 +31,7 @@ __NS__image16m() {
 				break
 			fi
 		done
-		while IFS=',:() ' read col row alpha red green blue X; do
+		while IFS=',:() ' read -r col row alpha red green blue X; do
 			rgb="${red};${green};${blue}"
 			if (( (row % 2) == 0 )); then
 				upper[$col]="$rgb"
@@ -64,12 +65,13 @@ __NS__image256() {
 	declare col row alpha red green blue X
 
 	convert -thumbnail "$GEOMETRY" -define txt:compliance=SVG "$FILE" txt:- | {
-		while IFS=',:() ' read col row alpha red green blue X; do
+		while IFS=',:() ' read -r col row alpha red green blue X; do
 			if [[ $col == "#" ]]; then
 				continue
 			fi
 			color="$(__NS__convert_rgb_to_palette256 ${red} ${green} ${blue})"
 			if (( row == 0 )); then
+				# shellcheck disable=2034
 				prev_col=col
 				upper[$col]="$color"
 			else
@@ -78,7 +80,8 @@ __NS__image256() {
 				break
 			fi
 		done
-		while IFS=',:() ' read col row alpha red green blue X; do
+		# shellcheck disable=SC2034
+		while IFS=',:() ' read -r col row alpha red green blue X; do
 			color="$(__NS__convert_rgb_to_palette256 ${red} ${green} ${blue})"
 			if (( (row % 2) == 0 )); then
 				upper[$col]="$color"

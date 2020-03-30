@@ -4,6 +4,7 @@ mkpipe() {
 	local -i fdout="$2"
 	local e
 	local -i pidout pidin
+	# shellcheck disable=SC2155
 	local pipe="$(
 		(
 			exec 0</dev/null 1</dev/null
@@ -18,19 +19,21 @@ mkpipe() {
 			} &
 		) 2>&1 | for (( i=0; i < 2; ++i )); do
 			read -r e
-			printf "$e\n"
+			printf '%s\n' "$e"
 		done
 	)"
 	eval "$pipe"
 	eval "exec $fdout> /proc/${pidout}/fd/1 $fdin< /proc/${pidin}/fd/0"
-	kill $pidout $pidin
+	kill "$pidout" "$pidin"
 }
 
 
 mkunamedfifo() {
 	local -i fd="$1"
+	# shellcheck disable=SC2155
 	local pipe="$(mktemp -u)"
-	mkfifo $pipe
+	mkfifo "$pipe"
 	eval "exec $fd<>'$pipe'"
 	rm "$pipe"
 }
+

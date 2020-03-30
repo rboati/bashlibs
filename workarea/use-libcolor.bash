@@ -1,4 +1,4 @@
-#/bin/bash
+#!/bin/bash
 
 source "../libimport.bash"
 bash_import "../libcolor.bash"
