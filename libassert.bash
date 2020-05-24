@@ -1,5 +1,4 @@
 
-
 __NS__generate_assert_functions() {
 	if [[ -z $ASSERT || $ASSERT == 1 ]]; then
 		__NS__assert() {

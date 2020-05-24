@@ -87,9 +87,6 @@ __NS__generate_log_functions() {
 				EOF
 			)
 			eval "$template"
-			template+=$(cat <<- EOF
-				EOF
-			)
 		else
 			template=$(cat <<- EOF
 				__NS__log${suffix}()   { declare -ir X=\$?; cat > /dev/null; return \$X; }
