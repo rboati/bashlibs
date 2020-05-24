@@ -28,7 +28,7 @@ mkpipe() {
 }
 
 
-mkunamedfifo() {
+mkufifo() {
 	local -i fd="$1"
 	# shellcheck disable=SC2155
 	local pipe="$(mktemp -u)"

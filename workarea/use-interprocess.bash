@@ -122,7 +122,7 @@ player() {
 
 
 
-IPC_TYPE=pipe
+IPC_TYPE=ufifo
 
 case "$IPC_TYPE" in
 fifo)
@@ -134,11 +134,12 @@ fifo)
 	wait
 	rm -r player1.fifo player2.fifo
 	;;
-unnamedfifo)
+
+ufifo)
 	: {fd1}> /dev/null
-	mkunamedfifo $fd1
+	mkufifo $fd1
 	: {fd2}> /dev/null
-	mkunamedfifo $fd2
+	mkufifo $fd2
 
 	trap 'echo quit >&$fd1; echo quit >&$fd2; eval "exec $fd1>&- $fd2>&-"' SIGINT
 	( player Bob <&$fd2  >&$fd1 ) &
@@ -146,9 +147,10 @@ unnamedfifo)
 	echo "serve" >&$fd1
 	wait
 	;;
-pipe)
 
-	mkpipe $fdin1 $fdout1: {fdin1}> /dev/null {fdout1}> /dev/null
+pipe)
+	: {fdin1}> /dev/null {fdout1}> /dev/null
+	mkpipe $fdin1 $fdout1
 	: {fdin2}> /dev/null {fdout2}> /dev/null
 	mkpipe $fdin2 $fdout2
 
