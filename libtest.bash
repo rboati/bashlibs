@@ -5,113 +5,113 @@ declare -gA __NS__TESTS=()
 
 
 __NS__get_test_functions() {
-	local PREFIX="$1"
-	local _
-	declare -F | while read -r _ TESTFUN _; do
-		if [[ $TESTFUN == testsuite_${PREFIX} ]]; then
-			echo "$TESTFUN"
+	local prefix="$1"
+	local _ testfunc
+	declare -F | while IFS=' ' read -r _ _ testfunc _; do
+		if [[ $testfunc == testsuite_${prefix} ]]; then
+			echo "$testfunc"
 		fi
 	done
 }
 
 __NS__init_tests() {
-	local SUITE_PATTERN="${1:-*}"
-	local COUNT
-	local TESTSUITE TESTFUNC
-	for TESTFUNC in  $(__NS__get_test_functions "${SUITE_PATTERN}_test_*"); do
-		TESTSUITE="${TESTFUNC#testsuite_}"
-		TESTSUITE="${TESTSUITE%%_test_*}"
-		__NS__TESTS[$TESTFUNC]="-"
-		COUNT=${ALL_TESTSUITES[$TESTSUITE]}
-		if [[ -z $COUNT ]]; then
+	local suite_pattern="${1:-*}"
+	local count
+	local testsuite testfunc
+	for testfunc in  $(__NS__get_test_functions "${suite_pattern}_test_*"); do
+		testsuite="${testfunc#testsuite_}"
+		testsuite="${testsuite%%_test_*}"
+		__NS__TESTS[$testfunc]="-"
+		count=${ALL_TESTSUITES[$testsuite]}
+		if [[ -z $count ]]; then
 			# shellcheck disable=SC2034
-			__NS__TESTSUITES[$TESTSUITE]=1
+			__NS__TESTSUITES[$testsuite]=1
 		else
 			# shellcheck disable=SC2034
-			__NS__TESTSUITES[$TESTSUITE]=$(( COUNT + 1 ))
+			__NS__TESTSUITES[$testsuite]=$(( count + 1 ))
 		fi
 	done
 }
 
 
 __NS__run_tests() {
-	local SUITE_PATTERN="${1:-*}"
+	local suite_pattern="${1:-*}"
 	#local TEST_PATTERN="${2:-*}"
-	local TESTFUNC TESTSUITE
+	local testfunc testsuite
 	#local TEST
-	local -i TEST_EXIT_CODE
+	local -i test_exit_code
 
-	__NS__init_tests "${SUITE_PATTERN}"
+	__NS__init_tests "${suite_pattern}"
 
-	for TESTFUNC in $(__NS__get_test_functions "${SUITE_PATTERN}_test_*"); do
-		TESTSUITE="${TESTFUNC#testsuite_}"
-		TESTSUITE="${TESTSUITE%%_test_*}"
-		#TEST="${TESTFUNC#testsuite_${TESTSUITE}_test_}"
-		TEST_EXIT_CODE=0
+	for testfunc in $(__NS__get_test_functions "${suite_pattern}_test_*"); do
+		testsuite="${testfunc#testsuite_}"
+		testsuite="${testsuite%%_test_*}"
+		#TEST="${testfunc#testsuite_${testsuite}_test_}"
+		test_exit_code=0
 		(
-			local -r SETUP=$(__NS__get_test_functions "${TESTSUITE}_setup")
-			local -r TEARDOWN=$(__NS__get_test_functions "${TESTSUITE}_teardown")
-			if [[ -n $SETUP ]]; then
-				$SETUP
+			local -r setup=$(__NS__get_test_functions "${testsuite}_setup")
+			local -r teardown=$(__NS__get_test_functions "${testsuite}_teardown")
+			if [[ -n $setup ]]; then
+				$setup
 			fi
-			TEST_EXIT_CODE=0
-			$TESTFUNC
-			if [[ -n $TEARDOWN ]]; then
-				$TEARDOWN
+			test_exit_code=0
+			$testfunc
+			if [[ -n $teardown ]]; then
+				$teardown
 			fi
-			exit $TEST_EXIT_CODE
+			exit $test_exit_code
 		)
-		TEST_EXIT_CODE=$?
-		if (( TEST_EXIT_CODE == 0 )); then
-			__NS__TESTS[$TESTFUNC]="SUCCESS"
+		test_exit_code=$?
+		if (( test_exit_code == 0 )); then
+			__NS__TESTS[$testfunc]="SUCCESS"
 		else
-			__NS__TESTS[$TESTFUNC]="FAIL"
+			__NS__TESTS[$testfunc]="FAIL"
 		fi
 	done
 }
 
 __NS__print_test_results() {
-	local SUITE_PATTERN="${1:-*}"
+	local suite_pattern="${1:-*}"
 	#local TEST_PATTERN="${2:-*}"
-	local TESTFUNC RESULT
-	local -i SUCCESSES=0 FAILURES=0 TESTED=0 UNTESTED=0 TOTAL=0
+	local testfunc result
+	local -i successes=0 failures=0 tested=0 untested=0 total=0
 
-	for TESTFUNC in $(__NS__get_test_functions "${SUITE_PATTERN}_test_*"); do
-		RESULT=${__NS__TESTS[$TESTFUNC]}
-		case $RESULT in
-			FAIL)    (( FAILURES++  )) ; COLOR='31' ;;
-			SUCCESS) (( SUCCESSES++ )) ; COLOR='32' ;;
-			-)       (( UNTESTED++  )) ; COLOR='1'  ;;
+	for testfunc in $(__NS__get_test_functions "${suite_pattern}_test_*"); do
+		result=${__NS__TESTS[$testfunc]}
+		case $result in
+			FAIL)    (( failures++  )) ; COLOR='31' ;;
+			SUCCESS) (( successes++ )) ; COLOR='32' ;;
+			-)       (( untested++  )) ; COLOR='1'  ;;
 		esac
-		printf '%s: \e[%sm%s\e[0m\n' "$TESTFUNC" "$COLOR" "$RESULT"
+		printf '%s: \e[%sm%s\e[0m\n' "$testfunc" "$COLOR" "$result"
 	done
-	(( TESTED=SUCCESSES+FAILURES ))
-	(( TOTAL=TESTED+UNTESTED ))
-	printf "Totals: %d/%d successes (%d%%), %d/%d failures (%s%%), %d/%d tested (%d%%)\n" $SUCCESSES $TESTED $((100*SUCCESSES/TESTED )) $FAILURES $TESTED $((100*FAILURES/TESTED)) $TESTED $TOTAL $((100*TESTED/TOTAL))
+	(( tested=successes+failures ))
+	(( total=tested+untested ))
+	printf "Totals: %d/%d successes (%d%%), %d/%d failures (%s%%), %d/%d tested (%d%%)\n" "$successes" "$tested" $((100*successes/tested )) "$failures" "$tested" $((100*failures/tested)) "$tested" "$total" $((100*tested/total))
 }
 
 
 __NS__test_assert() {
-	local PREV_EXIT_CODE=$?
-	[[ -z $TEST_EXIT_CODE ]] && return 1
-	declare FILE FUNC LINE
+	local prev_exit_code=$?
+	[[ -z $test_exit_code ]] && return 1
+	declare file func line
 	if (( $# == 0 )); then
-		if (( PREV_EXIT_CODE != 0 )); then
-			FILE="${BASH_SOURCE[1]}"
-			FUNC="${FUNCNAME[1]}"
-			LINE="${BASH_LINENO[0]}"
-			printf '%s: \e[31mFAIL\e[0m "%s" in %s() [%s:%d]\n' "$TESTFUNC" "Exit code != 0" "$FUNC" "$FILE" "$LINE"
+		if (( prev_exit_code != 0 )); then
+			file="${BASH_SOURCE[1]}"
+			func="${FUNCNAME[1]}"
+			line="${BASH_LINENO[0]}"
+			printf '%s: \e[31mFAIL\e[0m "%s" in %s() [%s:%d]\n' "$testfunc" "Exit code != 0" "$func" "$file" "$line"
 		fi
-		TEST_EXIT_CODE=$PREV_EXIT_CODE
-		exit $TEST_EXIT_CODE
+		test_exit_code=$prev_exit_code
+		exit $test_exit_code
 	fi
 	if ! eval "$*"; then
-		FILE="${BASH_SOURCE[1]}"
-		FUNC="${FUNCNAME[1]}"
-		LINE="${BASH_LINENO[0]}"
-		printf '%s: \e[31mFAIL\e[0m "%s" in %s() [%s:%d]\n' "$TESTFUNC" "$*" "$FUNC" "$FILE" "$LINE"
-		TEST_EXIT_CODE=1
-		exit $TEST_EXIT_CODE
+		file="${BASH_SOURCE[1]}"
+		func="${FUNCNAME[1]}"
+		line="${BASH_LINENO[0]}"
+		printf '%s: \e[31mFAIL\e[0m "%s" in %s() [%s:%d]\n' "$testfunc" "$*" "$func" "$file" "$line"
+		test_exit_code=1
+		exit $test_exit_code
 	fi
 }
 
@@ -135,97 +135,97 @@ __NS__undefined_var() {
 
 
 __NS__test_assert_match_declare() {
-	[[ -z $TEST_EXIT_CODE ]] && return 1
-	declare FILE FUNC LINE
+	[[ -z $test_exit_code ]] && return 1
+	declare file func line
 	# shellcheck disable=SC2155
 	local A1="$(declare -p "$1")"
 	# shellcheck disable=SC2155
 	local A2="$(declare -p "$2")"
 	if ! [[ "${A1#*=}" == "${A2#*=}" ]]; then
-		FILE="${BASH_SOURCE[1]}"
-		FUNC="${FUNCNAME[1]}"
-		LINE="${BASH_LINENO[0]}"
-		printf '%s: \e[31mFAIL\e[0m "%s" in %s() [%s:%d]\n' "$TESTFUNC" "\$$1 match \$$2" "$FUNC" "$FILE" "$LINE"
-		TEST_EXIT_CODE=1
-		exit $TEST_EXIT_CODE
+		file="${BASH_SOURCE[1]}"
+		func="${FUNCNAME[1]}"
+		line="${BASH_LINENO[0]}"
+		printf '%s: \e[31mFAIL\e[0m "%s" in %s() [%s:%d]\n' "$testfunc" "\$$1 match \$$2" "$func" "$file" "$line"
+		test_exit_code=1
+		exit $test_exit_code
 	fi
 }
 
 __NS__test_assert_eq() {
-	[[ -z $TEST_EXIT_CODE ]] && return 1
-	declare FILE FUNC LINE
+	[[ -z $test_exit_code ]] && return 1
+	declare file func line
 	if ! [[ "$1" == "$2" ]]; then
-		FILE="${BASH_SOURCE[1]}"
-		FUNC="${FUNCNAME[1]}"
-		LINE="${BASH_LINENO[0]}"
-		printf '%s: \e[31mFAIL\e[0m "%s" in %s() [%s:%d]\n' "$TESTFUNC" "$1 == $2" "$FUNC" "$FILE" "$LINE"
-		TEST_EXIT_CODE=1
-		exit $TEST_EXIT_CODE
+		file="${BASH_SOURCE[1]}"
+		func="${FUNCNAME[1]}"
+		line="${BASH_LINENO[0]}"
+		printf '%s: \e[31mFAIL\e[0m "%s" in %s() [%s:%d]\n' "$testfunc" "$1 == $2" "$func" "$file" "$line"
+		test_exit_code=1
+		exit $test_exit_code
 	fi
 }
 
 __NS__test_assert_neq() {
-	[[ -z $TEST_EXIT_CODE ]] && return 1
-	declare FILE FUNC LINE
+	[[ -z $test_exit_code ]] && return 1
+	declare file func line
 	if [[ "$1" == "$2" ]]; then
-		FILE="${BASH_SOURCE[1]}"
-		FUNC="${FUNCNAME[1]}"
-		LINE="${BASH_LINENO[0]}"
-		printf '%s: \e[31mFAIL\e[0m "%s" in %s() [%s:%d]\n' "$TESTFUNC" "$1 != $2" "$FUNC" "$FILE" "$LINE"
-		TEST_EXIT_CODE=1
-		exit $TEST_EXIT_CODE
+		file="${BASH_SOURCE[1]}"
+		func="${FUNCNAME[1]}"
+		line="${BASH_LINENO[0]}"
+		printf '%s: \e[31mFAIL\e[0m "%s" in %s() [%s:%d]\n' "$testfunc" "$1 != $2" "$func" "$file" "$line"
+		test_exit_code=1
+		exit $test_exit_code
 	fi
 }
 
 __NS__test_assert_lt() {
-	[[ -z $TEST_EXIT_CODE ]] && return 1
-	declare FILE FUNC LINE
+	[[ -z $test_exit_code ]] && return 1
+	declare file func line
 	if ! (( "$1" < "$2" )); then
-		FILE="${BASH_SOURCE[1]}"
-		FUNC="${FUNCNAME[1]}"
-		LINE="${BASH_LINENO[0]}"
-		printf '%s: \e[31mFAIL\e[0m "%s" in %s() [%s:%d]\n' "$TESTFUNC" "$1 < $2" "$FUNC" "$FILE" "$LINE"
-		TEST_EXIT_CODE=1
-		exit $TEST_EXIT_CODE
+		file="${BASH_SOURCE[1]}"
+		func="${FUNCNAME[1]}"
+		line="${BASH_LINENO[0]}"
+		printf '%s: \e[31mFAIL\e[0m "%s" in %s() [%s:%d]\n' "$testfunc" "$1 < $2" "$func" "$file" "$line"
+		test_exit_code=1
+		exit $test_exit_code
 	fi
 }
 
 __NS__test_assert_gt() {
-	[[ -z $TEST_EXIT_CODE ]] && return 1
-	declare FILE FUNC LINE
+	[[ -z $test_exit_code ]] && return 1
+	declare file func line
 	if ! (( "$1" > "$2" )); then
-		FILE="${BASH_SOURCE[1]}"
-		FUNC="${FUNCNAME[1]}"
-		LINE="${BASH_LINENO[0]}"
-		printf '%s: \e[31mFAIL\e[0m "%s" in %s() [%s:%d]\n' "$TESTFUNC" "$1 > $2" "$FUNC" "$FILE" "$LINE"
-		TEST_EXIT_CODE=1
-		exit $TEST_EXIT_CODE
+		file="${BASH_SOURCE[1]}"
+		func="${FUNCNAME[1]}"
+		line="${BASH_LINENO[0]}"
+		printf '%s: \e[31mFAIL\e[0m "%s" in %s() [%s:%d]\n' "$testfunc" "$1 > $2" "$func" "$file" "$line"
+		test_exit_code=1
+		exit $test_exit_code
 	fi
 }
 
 __NS__test_assert_le() {
-	[[ -z $TEST_EXIT_CODE ]] && return 1
-	declare FILE FUNC LINE
+	[[ -z $test_exit_code ]] && return 1
+	declare file func line
 	if ! (( "$1" <= "$2" )); then
-		FILE="${BASH_SOURCE[1]}"
-		FUNC="${FUNCNAME[1]}"
-		LINE="${BASH_LINENO[0]}"
-		printf '%s: \e[31mFAIL\e[0m "%s" in %s() [%s:%d]\n' "$TESTFUNC" "$1 <= $2" "$FUNC" "$FILE" "$LINE"
-		TEST_EXIT_CODE=1
-		exit $TEST_EXIT_CODE
+		file="${BASH_SOURCE[1]}"
+		func="${FUNCNAME[1]}"
+		line="${BASH_LINENO[0]}"
+		printf '%s: \e[31mFAIL\e[0m "%s" in %s() [%s:%d]\n' "$testfunc" "$1 <= $2" "$func" "$file" "$line"
+		test_exit_code=1
+		exit $test_exit_code
 	fi
 }
 
 __NS__test_assert_ge() {
-	[[ -z $TEST_EXIT_CODE ]] && return 1
-	declare FILE FUNC LINE
+	[[ -z $test_exit_code ]] && return 1
+	declare file func line
 	if ! (( "$1" >= "$2" )); then
-		FILE="${BASH_SOURCE[1]}"
-		FUNC="${FUNCNAME[1]}"
-		LINE="${BASH_LINENO[0]}"
-		printf '%s: \e[31mFAIL\e[0m "%s" in %s() [%s:%d]\n' "$TESTFUNC" "$1 >= $2" "$FUNC" "$FILE" "$LINE"
-		TEST_EXIT_CODE=1
-		exit $TEST_EXIT_CODE
+		file="${BASH_SOURCE[1]}"
+		func="${FUNCNAME[1]}"
+		line="${BASH_LINENO[0]}"
+		printf '%s: \e[31mFAIL\e[0m "%s" in %s() [%s:%d]\n' "$testfunc" "$1 >= $2" "$func" "$file" "$line"
+		test_exit_code=1
+		exit $test_exit_code
 	fi
 }
 
