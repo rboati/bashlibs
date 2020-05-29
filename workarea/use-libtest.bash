@@ -55,7 +55,7 @@ testsuite_aaa_test_sort2() {
 	qsort "${ARRAY[@]}"
 	ARRAY=( "${qsort_ret[@]}" )
 
-	test_assert_eval "match_declare ARRAY EXPECTED"
+	test_assert "match_declare ARRAY EXPECTED"
 	test_assert_match_declare ARRAY EXPECTED
 	test_assert_eq "${ARRAY[0]}" a
 	test_assert_eq "${ARRAY[2]}" 'c c'
@@ -67,7 +67,7 @@ testsuite_aaa_test_sort2() {
 	qsort "${ARRAY[@]}"
 	ARRAY=( "${qsort_ret[@]}" )
 
-	test_assert_eval "match_declare ARRAY EXPECTED"
+	test_assert "match_declare ARRAY EXPECTED"
 	test_assert_match_declare ARRAY EXPECTED
 	test_assert_eq "${ARRAY[0]}" a
 	test_assert_eq "${ARRAY[2]}" 'c c'

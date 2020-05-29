@@ -75,20 +75,70 @@ __NS__print_test_results() {
 	#local TEST_PATTERN="${2:-*}"
 	local testfunc result
 	local -i successes=0 failures=0 tested=0 untested=0 total=0
+	local color
 
 	for testfunc in $(__NS__get_test_functions "${suite_pattern}_test_*"); do
 		result=${__NS__TESTS[$testfunc]}
 		case $result in
-			FAIL)    (( failures++  )) ; COLOR='31' ;;
-			SUCCESS) (( successes++ )) ; COLOR='32' ;;
-			-)       (( untested++  )) ; COLOR='1'  ;;
+			FAIL)    (( failures++  )) ; color='31' ;;
+			SUCCESS) (( successes++ )) ; color='32' ;;
+			-)       (( untested++  )) ; color='1'  ;;
 		esac
-		printf '%s: \e[%sm%s\e[0m\n' "$testfunc" "$COLOR" "$result"
+		printf '%s: \e[%sm%s\e[0m\n' "$testfunc" "$color" "$result"
 	done
 	(( tested=successes+failures ))
 	(( total=tested+untested ))
-	printf "Totals: %d/%d successes (%d%%), %d/%d failures (%s%%), %d/%d tested (%d%%)\n" "$successes" "$tested" $((100*successes/tested )) "$failures" "$tested" $((100*failures/tested)) "$tested" "$total" $((100*tested/total))
+	local successes_percent=$((100*successes/tested )) failures_percent=$((100*failures/tested))
+	if (( successes_percent != 100 )); then
+		color=31
+	else
+		color=32
+	fi
+	successes_percent="\e[${color}m${successes_percent}%\e[0m"
+	if (( failures_percent != 0 )); then
+		color=31
+	else
+		color=32
+	fi
+	failures_percent="\e[${color}m${failures_percent}%\e[0m"
+
+	printf "\e[37mSummary\e[0m: %d/%d successes (%b), %d/%d failures (%b), %d/%d tested (%d%%)\n" "$successes" "$tested" "$successes_percent" "$failures" "$tested" "$failures_percent" "$tested" "$total" $((100*tested/total))
 }
+
+__NS__print_test_summary() {
+	local suite_pattern="${1:-*}"
+	#local TEST_PATTERN="${2:-*}"
+	local testfunc result
+	local -i successes=0 failures=0 tested=0 untested=0 total=0
+	local color
+
+	for testfunc in $(__NS__get_test_functions "${suite_pattern}_test_*"); do
+		result=${__NS__TESTS[$testfunc]}
+		case $result in
+			FAIL)    (( failures++  )) ; color='31' ;;
+			SUCCESS) (( successes++ )) ; color='32' ;;
+			-)       (( untested++  )) ; color='1'  ;;
+		esac
+	done
+	(( tested=successes+failures ))
+	(( total=tested+untested ))
+	local successes_percent=$((100*successes/tested )) failures_percent=$((100*failures/tested))
+	if (( successes_percent != 100 )); then
+		color=31
+	else
+		color=32
+	fi
+	successes_percent="\e[${color}m${successes_percent}%\e[0m"
+	if (( failures_percent != 0 )); then
+		color=31
+	else
+		color=32
+	fi
+	failures_percent="\e[${color}m${failures_percent}%\e[0m"
+
+	printf "\e[37mSummary\e[0m: %d/%d successes (%b), %d/%d failures (%b), %d/%d tested (%d%%)\n" "$successes" "$tested" "$successes_percent" "$failures" "$tested" "$failures_percent" "$tested" "$total" $((100*tested/total))
+}
+
 
 
 __NS__test_assert() {
