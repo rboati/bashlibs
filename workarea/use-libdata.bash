@@ -2,7 +2,7 @@
 
 # shellcheck disable=SC1091
 source ../libimport.bash
-DEBUG=1 bash_import ../libdata.bash
+bash_import ../libdata.bash
 
 
 # declare -a def=( id name text  )

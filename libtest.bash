@@ -141,6 +141,26 @@ __NS__print_test_summary() {
 
 
 
+
+
+__NS__test_assert() {
+	local -i exit_code=$?
+	local error_msg=$1
+	[[ -z $test_exit_code ]] && return 1
+	declare file func line
+	if (( exit_code == 0 )); then
+		return 0
+	fi
+	file=${BASH_SOURCE[1]}
+	func=${FUNCNAME[1]}
+	line=${BASH_LINENO[0]}
+	printf '%s: \e[31mFAIL\e[0m "%s" in %s() [%s:%d]\n' "$testfunc" "$error_msg" "$func" "$file" "$line"
+	test_exit_code=$exit_code
+	exit $test_exit_code
+}
+
+
+
 __NS__test_assert() {
 	local prev_exit_code=$?
 	[[ -z $test_exit_code ]] && return 1
@@ -179,7 +199,7 @@ __NS__undefined_function() {
 	! declare -p -F "$1" &> /dev/null
 }
 
-__NS__undefined_var() {
+__NS__is_var_undefined() {
 	! declare -p "$1" &> /dev/null
 }
 

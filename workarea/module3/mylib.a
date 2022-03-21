@@ -1,0 +1,13 @@
+!<arch>
+item1/          0           0     0     644     26        `
+elem1() {
+	echo 'elem1'
+}
+item2/          0           0     0     644     26        `
+elem2() {
+	echo 'elem2'
+}
+item3/          0           0     0     644     26        `
+elem3() {
+	echo 'elem3'
+}

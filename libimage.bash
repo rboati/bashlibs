@@ -6,7 +6,7 @@
 
 # shellcheck disable=SC1090
 source "$__DIR__/libimport.bash"
-bash_import "./libcolor.bash" __NS__
+bash_import ./libcolor.bash=__NS__
 
 __NS__image16m() {
 	declare FILE="$1"

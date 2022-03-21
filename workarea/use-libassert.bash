@@ -8,31 +8,33 @@ exit() {
 	echo "Ignoring EXIT($1) for testing purposes"
 }
 
-assert undefined_function function1
+is_function_set function1 || assert
 function1() {
-	assert test 10 -gt 5
+	test 10 -gt 5 || assert
 	function2
 }
 
-assert ! undefined_function function2
+! is_function_set function2 || assert
 function2() {
 	assert false
 }
 
+
 for i in 1 2;  do
 	if (( i == 1 )); then
+		ASSERT=1 generate_assert_functions
 		echo "Assertions enabled"
 	elif (( i == 2 )); then
 		ASSERT=0 generate_assert_functions
 		echo "Assertions disabled"
 	fi
 
-	assert "(( 10 < 2 ))"
+	(( 10 < 2 )) || assert
 
 	(( 30 < 5 )) || assert
 
-	assert false
-	assert true
+	false || assert
+	true || assert
 
 	false
 	assert

@@ -13,9 +13,11 @@ __NS__state_TOP_STATE() {
 	return $__NS__RET_IGNORED
 }
 
+
 __NS__hsm_dispatch() {
+	# In this function, names are messy on purpose to avoid user's names collisions
 	local __NS____s__
-	local __NS____t__=$__NS__STATE # save current state
+	local __NS____t__=${__NS__STATE:?} # save current state
 	local -i __NS____r__
 	local -i __NS____ip__
 	local -i __NS____iq__
@@ -37,7 +39,7 @@ __NS__hsm_dispatch() {
 	# here __NS____t__ is the original source state
 	# here __NS____s__ is the source state of last transition
 
-	__NS____ip__="-1"
+	__NS____ip__=-1
 	__NS__HSM_PATH[0]=$__NS__STATE
 	__NS__HSM_PATH[1]=$__NS____t__
 
@@ -75,10 +77,10 @@ __NS__hsm_dispatch() {
 					__NS____r__=$?
 					while (( __NS____r__ == __NS__RET_PARENT )); do
 						(( ++__NS____ip__ ))
-						__NS__HSM_PATH[$__NS____ip__]=$__NS__STATE
+						__NS__HSM_PATH[__NS____ip__]=$__NS__STATE
 						if [[ $__NS__STATE == "$__NS____s__" ]]; then
 							__NS____iq__=1
-							# assert __NS____ip__ < MAX_NEST_DEPTH;
+							# (( __NS____ip__ < MAX_NEST_DEPTH )) || assert
 							(( --__NS____ip__ ))
 							__NS____r__=$__NS__RET_HANDLED
 						else
@@ -87,12 +89,12 @@ __NS__hsm_dispatch() {
 						fi
 					done
 					if (( __NS____iq__ == 0 )); then
-						# assert __NS____ip__ < MAX_NEST_DEPTH;
+						# (( __NS____ip__ < MAX_NEST_DEPTH )) || assert
 						"__NS__state_$__NS____s__" $__NS__SIG_EXIT
 						__NS____iq__=$__NS____ip__
 						__NS____r__=$__NS__RET_IGNORED
 						while :; do
-							if [[ $__NS____t__ == "${__NS__HSM_PATH[$__NS____iq__]}" ]]; then
+							if [[ $__NS____t__ == "${__NS__HSM_PATH[__NS____iq__]}" ]]; then
 								__NS____r__=$__NS__RET_HANDLED
 								((__NS____ip__=__NS____iq__-1 ))
 								__NS____iq__=-1
@@ -111,7 +113,7 @@ __NS__hsm_dispatch() {
 								__NS____t__=$__NS__STATE
 								__NS____iq__=$__NS____ip__
 								while :; do
-									if [[ $__NS____t__ == "${__NS__HSM_PATH[$__NS____iq__]}" ]]; then
+									if [[ $__NS____t__ == "${__NS__HSM_PATH[__NS____iq__]}" ]]; then
 										(( __NS____ip__=__NS____iq__-1 ))
 										__NS____iq__=-1
 										__NS____r__=$__NS__RET_HANDLED
@@ -130,7 +132,7 @@ __NS__hsm_dispatch() {
 	fi
 
 	for (( ; __NS____ip__ >= 0; --__NS____ip__ )); do
-		"__NS__state_${__NS__HSM_PATH[$__NS____ip__]}" $__NS__SIG_ENTRY
+		"__NS__state_${__NS__HSM_PATH[__NS____ip__]}" $__NS__SIG_ENTRY
 	done
 
 	__NS____t__=${__NS__HSM_PATH[0]}
@@ -143,12 +145,12 @@ __NS__hsm_dispatch() {
 		"__NS__state_$__NS__STATE" $__NS__SIG_EMPTY
 		while [[ $__NS__STATE != "$__NS____t__" ]]; do
 			(( ++__NS____ip__ ))
-			__NS__HSM_PATH[$__NS____ip__]=$__NS__STATE
+			__NS__HSM_PATH[__NS____ip__]=$__NS__STATE
 			"__NS__state_$__NS__STATE" $__NS__SIG_EMPTY
 		done
 		__NS__STATE=${__NS__HSM_PATH[0]}
 		while :; do
-			"__NS__state_${__NS__HSM_PATH[$__NS____ip__]}" $__NS__SIG_ENTRY
+			"__NS__state_${__NS__HSM_PATH[__NS____ip__]}" $__NS__SIG_ENTRY
 			(( --__NS____ip__ ))
 			(( __NS____ip__ >= 0 )) || break
 		done
@@ -181,11 +183,11 @@ __NS__hsm_init() {
 			"__NS__state_$__NS__STATE" $__NS__SIG_EMPTY
 			[[ $__NS__STATE == "$__NS____t__" ]] && break
 			(( ++__NS____ip__ ))
-			__NS__HSM_PATH[$__NS____ip__]=$__NS__STATE
+			__NS__HSM_PATH[__NS____ip__]=$__NS__STATE
 		done
 		__NS__STATE=${__NS__HSM_PATH[0]}
 		while :; do # execute entry actiions from parents to childs
-			"__NS__state_${__NS__HSM_PATH[$__NS____ip__]}" $__NS__SIG_ENTRY
+			"__NS__state_${__NS__HSM_PATH[__NS____ip__]}" $__NS__SIG_ENTRY
 			(( --__NS____ip__ ))
 			(( __NS____ip__ < 0 )) && break
 		done
@@ -197,27 +199,29 @@ __NS__hsm_init() {
 }
 
 __NS__hsm_instrument() {
-	local funcname="$1"
-	local LINE
+	local funcname=$1
+	local code line
 	local -i i=0
 	if [[ -v $funcname ]]; then
-		CODE="$(cat <<- EOF
+		code=$(cat <<- EOF
 			declare -g __NS__STATE
 			declare -ga __NS__HSM_PATH=()
 			EOF
-		)"
+		)
 	else
-		CODE=$(declare -pf "$funcname" |
-			while read -r LINE; do
-				echo "$LINE"
+		code=$(declare -pf "$funcname" |
+			while read -r line; do
+				printf '%s\n' "$line"
 				if (( i==1 )); then
-					echo "local __NS__STATE"
-					echo "local -a __NS__HSM_PATH=()"
+					cat <<- EOF
+					local __NS__STATE
+					local -a __NS__HSM_PATH=()
+					EOF
 					exec cat
 				fi
 				(( ++i ))
 			done
 		)
 	fi
-	eval "$CODE"
+	eval "$code"
 }

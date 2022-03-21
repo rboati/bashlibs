@@ -11,18 +11,40 @@ fi
 
 __NS__logdomain_filter() {
 	local prefix="$1"
-	local IFS='' msg
+	local IFS='' LC_ALL=C msg
+	eval "
 	while read -r msg; do
-		printf '%b%s\n' "$prefix" "$msg"
+		printf -- '$prefix%s\n' \"\$msg\"
 	done
+	"
 }
 
 __NS__loglevel_filter() {
 	local prefix="$1"
-	local IFS='' msg
+	local IFS='' LC_ALL=C msg
+	eval "
 	while read -r msg; do
-		printf '%b%s\n' "$prefix" "$msg"
+		printf -- '$prefix%s\n' \"\$msg\"
 	done
+	"
+}
+
+__NS__loglevel_filter_epoch() {
+	local prefix="$1"
+	local IFS='' LC_ALL=C msg
+	if (( __NS__LOGCOLOR == 1 )); then
+		eval "
+		while read -r msg; do
+			printf -- '\e[2m[%s]\e[0m$prefix%s\n' \"\$EPOCHREALTIME\" \"\$msg\"
+		done
+		"
+	else
+		eval "
+		while read -r msg; do
+			printf -- '[%s]$prefix%s\n' \"\$EPOCHREALTIME\" \"\$msg\"
+		done
+		"
+	fi
 }
 
 
@@ -38,7 +60,7 @@ __NS__generate_log_functions() {
 
 	for (( level=0; level<${#__NS__LOGLEVELS[@]}; ++level)); do
 		(( fd=100+level ))
-		eval "exec ${fd}>&-"
+		exec {fd}>&-
 	done
 
 	if [[ -z $__NS__LOGCOLOR ]]; then
@@ -70,26 +92,26 @@ __NS__generate_log_functions() {
 				exec ${fd}> >(__NS__loglevel_filter "${color}${level_name}${reset}:" $__NS__LOGSINK;);
 
 				__NS__log${suffix}()   {
-					declare -ir X=\$?;
+					local -ir x=\$?;
 					cat > >(__NS__logdomain_filter "${color}\$__NS__LOGDOMAIN${reset}:" >&${fd};);
-					return \$X;
+					return \$x;
 				}
 				__NS__echo${suffix}()  {
-					declare -ir X=\$?; declare msg;
+					local -ir x=\$?;
 					printf '%b:%s\n' "${color}\$__NS__LOGDOMAIN${reset}" "\$*" >&${fd};
-					return \$X;
+					return \$x;
 				}
 				__NS__print${suffix}() {
-					declare -ir X=\$?; declare msg; declare FMT="\$1"; shift;
-					printf "${color}\$__NS__LOGDOMAIN${reset}:\$FMT\n" "\$@" >&${fd};
-					return \$X;
+					local -ir x=\$?; local fmt="\$1"; shift;
+					printf "${color}\$__NS__LOGDOMAIN${reset}:\$fmt\n" "\$@" >&${fd};
+					return \$x;
 				}
 				EOF
 			)
 			eval "$template"
 		else
 			template=$(cat <<- EOF
-				__NS__log${suffix}()   { declare -ir X=\$?; cat > /dev/null; return \$X; }
+				__NS__log${suffix}()   { declare -ir x=\$?; cat > /dev/null; return \$x; }
 				__NS__echo${suffix}()  { return \$?; }
 				__NS__print${suffix}() { return \$?; }
 				EOF
@@ -101,18 +123,21 @@ __NS__generate_log_functions() {
 	done
 }
 
+
+
+
 ## Example log functions
 ##
 ## logXXX functions log as level XXX their stdin
 ## echoXXX functions log as level XXX, similarly to the "echo" command
 ## printXXX functions log as level XXX, similarly to the "printf" command
 ##
-  __NS__logfatal() { return $?; }
-  __NS__logerror() { return $?; }
-   __NS__logwarn() { return $?; }
-   __NS__loginfo() { return $?; }
-  __NS__logdebug() { return $?; }
-  __NS__logtrace() { return $?; }
+  __NS__logfatal() { declare -ir x=$?; cat > /dev/null; return $x; }
+  __NS__logerror() { declare -ir x=$?; cat > /dev/null; return $x; }
+   __NS__logwarn() { declare -ir x=$?; cat > /dev/null; return $x; }
+   __NS__loginfo() { declare -ir x=$?; cat > /dev/null; return $x; }
+  __NS__logdebug() { declare -ir x=$?; cat > /dev/null; return $x; }
+  __NS__logtrace() { declare -ir x=$?; cat > /dev/null; return $x; }
  __NS__echofatal() { return $?; }
  __NS__echoerror() { return $?; }
   __NS__echowarn() { return $?; }
@@ -169,5 +194,63 @@ __NS__set_loglevel() {
 	return $err
 }
 
+__NS__setup_logging_1() {
+	[[ -z $__NS__LOGLEVEL ]] && __NS__LOGLEVEL=4
+	local stdout stderr
+	exec {stdout}>&1 {stderr}>&2 # save fd
+	# shellcheck disable=SC2034
+	__NS__LOGSINK="1>&$stderr"
+	set_loglevel "$__NS__LOGLEVEL"
+	exec >  >(__NS__LOGDOMAIN=stdout loginfo)
+	exec 2> >(__NS__LOGDOMAIN=stderr logwarn)
+}
 
 
+__NS__setup_logging_2() {
+	[[ -z $LOGLEVEL ]] && LOGLEVEL=4
+	local stdout stderr
+	exec {stdout}>&1 {stderr}>&2 # save fd
+	# shellcheck disable=SC2034
+	__NS__LOGSINK="1>&$stderr"
+	set_loglevel "$LOGLEVEL"
+	exec >  >(__NS__LOGDOMAIN=stdout loginfo)
+	exec 2> >(__NS__LOGDOMAIN=stderr logwarn)
+}
+
+
+__NS__simple_filter() {
+	local prefix=$1
+	eval "
+		while read -r msg; do
+			printf -- '%s%s%s\n' "\${prefix}" "\$msg"
+		done $__NS__LOGSINK
+	"
+}
+
+# exec ${fd}> >(__NS__loglevel_filter "${color}${level_name}${reset}:" $__NS__LOGSINK;);
+# __NS__log${suffix}()   {
+# 	declare -ir x=\$?;
+# 	local color reset
+# 	if (( __NS__LOGCOLOR == 1 )); then
+# 		color="${__NS__LOGCOLORS[$level]}"
+# 		[[ -z $color ]] && color='0'
+# 		color="\e[${color}m"
+# 		reset="\e[0m"
+# 	else
+# 		color=''
+# 		reset=''
+# 	fi
+
+# 	cat | __NS__simple_filter "${color}${level_name}${reset}:${color}${__NS__LOGDOMAIN}${reset}:"
+# 	return \$x;
+# }
+# __NS__echo${suffix}()  {
+# 	declare -ir X=\$?; declare msg;
+# 	printf '%b:%s\n' "${color}\$__NS__LOGDOMAIN${reset}" "\$*" >&${fd};
+# 	return \$X;
+# }
+# __NS__print${suffix}() {
+# 	declare -ir X=\$?; declare msg; declare FMT="\$1"; shift;
+# 	printf "${color}\$__NS__LOGDOMAIN${reset}:\$FMT\n" "\$@" >&${fd};
+# 	return \$X;
+# }

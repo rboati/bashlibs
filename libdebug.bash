@@ -39,8 +39,9 @@ __NS__set_debugger_trap() {
 }
 
 __NS__set_exit_code() {
-	local -i i="$1"
-	return "$i"
+	local -i exit_code=${1-0}
+	# shellcheck disable=SC2086
+	return $exit_code
 }
 
 

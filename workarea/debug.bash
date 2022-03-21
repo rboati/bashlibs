@@ -4,7 +4,7 @@
 
 DEBUG=1
 source "../libimport.bash"
-bash_import "libdebug.bash" __NS__
+bash_import libdebug.bash=__NS__
 
 
 if [[ -n "$1" ]]; then

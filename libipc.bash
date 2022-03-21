@@ -1,5 +1,5 @@
 
-mkpipe() {
+__NS__mkpipe() {
 	local -i fdin="$1"
 	local -i fdout="$2"
 	local e
@@ -28,7 +28,7 @@ mkpipe() {
 }
 
 
-mkufifo() {
+__NS__mkufifo() {
 	local -i fd="$1"
 	# shellcheck disable=SC2155
 	local pipe="$(mktemp -u)"

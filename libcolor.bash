@@ -1,6 +1,6 @@
 
 declare -gA __NS__TEXT_ATTRS=(
-	[normal]='21;22;23;24;25;26;27;28:29'
+	[normal]='21;22;23;24;25;26;27;28;29'
 	[bold]=1
 	[dim]=2
 	[italic]=3
@@ -13,7 +13,7 @@ declare -gA __NS__TEXT_ATTRS=(
 	[strike]=9
 )
 declare -gA __NS__TEXT_ATTRS_UNSET=(
-	[normal]='21;22;23;24;25;26;27;28:29'
+	[normal]='21;22;23;24;25;26;27;28;29'
 	[bold]=22
 	[dim]=22
 	[italic]=23

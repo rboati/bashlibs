@@ -2,7 +2,7 @@
 
 # shellcheck disable=SC1091
 source ../libimport.bash
-bash_import ../libipc.bash
+bash_import ../libipc.bash mkufifo
 bash_import ../libdebug.bash
 
 
@@ -36,8 +36,8 @@ storage() {
 }
 
 : {fdset}<>/dev/null {fdget}<>/dev/null
-mkunamedfifo $fdset
-mkunamedfifo $fdget
+mkufifo $fdset
+mkufifo $fdget
 
 (storage $fdset $fdget) &
 

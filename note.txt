@@ -1,0 +1,96 @@
+
+registro
+	create local repository
+	delete local repository
+	add package
+
+bpm
+	init
+	install
+	uninstall
+	list
+		modules
+		installed
+
+
+repo
+	pubblico
+	privato
+
+
+
+package.json
+.bash_modules/
+
+
+----------------------------------------------------------------
+Feature, TODO
+
+	- definire requisiti minimi base
+		- alcune librerie potrebbero avere restrizioni maggiori
+		- no compatibilità con shell non-bash
+
+	- compatibilità con -o nounset e -o errexit
+		set -o nounset
+		set -o errexit
+		?? set -o pipefail
+
+	- correttezza anche con IFS modificato
+
+	- compatibilità con l'utilizzo di nomi di file o directory o altri testi che iniziano per '-'
+		- printf --
+		- cat --
+		- cd --
+		- ...
+
+	- controlli estesi su tutti gli input utenti (forced policy)
+		- le funzioni falliscono con exit, non con return
+		- return solo per condizioni normali e gestibili, ex:
+			- found, not found
+			- network problems
+
+	- possibilità di "strip"-are questi controlli dove fosse necessario per motivi di performance
+
+	- no copie di array dove possibile
+	- no sottoprocessi dove possibile
+	- variabile di ritorno impostabile con il valore di "retvar", default "return"
+
+	- test e coverage 100% ( normale e stripped )
+	- shellcheck clean
+
+	- importazione moduli
+		- prefisso nomi personalizzabile per evitare conflitti
+		- import relativi
+		?? importazione opzionale di alias raccomandati
+
+	- documentazione integrata
+		- parametri input, valore di ritorno, effetti secondari
+		- librerie da cui dipende
+		- comandi esterni da cui dipende
+		- fd usati
+		- se modifica BASH_REMATCH
+
+	?? compilazione progetto in un unico file
+
+	?? download librerie da github / gitlba
+
+
+
+La funzione bash_import
+L'importazioni di percorsi relativi è relativo al file che esegue il bash_import
+il prefisso speciale __NS__ è considerato come un namespace della libreria che viene sostituito in fase di importazione.
+Durante l'importazione con bash_import è possibile specificare un namespace opzionale per la libreria.
+Il prefisso __NS__ viene sostituito con il namespace specificato, o rimosso se non è stato specififcato alcun namespace.
+
+Una libreria può specificare a sua volta dei namespace per le librerie che importa.
+Se una libreria specifica come namespace __NS__ di fatto includerà nel suo stesso namespace la libreria importata.
+
+Se una libreria durante una importazione non risulta essere già stata importata, allora sarà importata con il namespace specificato o nullo.
+
+Invece, se una libreria durante una importazione risulta essere già stata importata:
+	con lo stesso namespace allora l'importazione non ha effetto.
+	con un namespace differente allora:
+		se il namespace non è corrisponde a __NS__ allora sarà importata con lo stesso namespace della libreria che la importa
+		se il namespace non è corrisponde al global pattern __NS*__ allora l'importazione prosegue normalmente.
+		se il namespace corrisponde al global pattern __NS*__ allora viene assegnato il primo namespace usato in precedenza.
+

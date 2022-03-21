@@ -1,0 +1,223 @@
+#!/usr/bin/env bash
+# shebang for syntax detection, not a command
+# do *not* set executable!
+
+module.already_loaded () {
+	[[ -v _MODULES_[${BASH_SOURCE[1]}] ]]
+}
+
+[[ -v _MODULES_   ]] || declare -Ag _MODULES_
+[[ -v _NUMARGS_   ]] || declare -ag _NUMARGS_
+[[ -v _ANCESTORS_ ]] || declare -ag _ANCESTORS_
+[[ -v _ALIASES_   ]] || declare -ag _ALIASES_
+[[ -v _PREFIXES_  ]] || declare -ag _PREFIXES_
+#declare -ag _NUMARGS_ _ANCESTORS_ _ALIASES_ _PREFIXES_
+[[ -v _file_   ]] || declare _file_
+[[ -v _funcs_ ]]  || declare -a _funcs_
+[[ -v _files_ ]]  || declare -a _files_
+_main_() {
+	declare _module_ _prefix_ _function_ _functions_
+	declare _parent_
+
+	# # shellcheck disable=SC2155
+	# local _shopt_sav_=$(shopt -p expand_aliases)
+	shopt -s expand_aliases
+
+	_parent_=${BASH_SOURCE[1]:-}
+
+	[[ ${1:-} != module ]] && return
+	set -- "${@:2}"
+
+	: <<- 'COMMENT'
+		salva nella lista del numero di argomenti (numargs) il numero di argomenti corrente
+	COMMENT
+	_NUMARGS_+=( $# )
+
+	: <<- 'COMMENT'
+		se:
+			- non ci sono argomenti
+			- la var $file è definita e non è nulla
+			- il file che ha eseguito l'import (parent) è lo stesso che deve essere importato (file)
+		allora:
+			ritorna
+	COMMENT
+	{ ! (( $# )) && [[ -n ${_file_:-} ]] && [[ $_parent_ == "$_file_" ]];} && return
+
+	: <<- 'COMMENT'
+		se:
+			- non ci sono argomenti
+			- il file che ha eseguito l'import (parent) non è nullo
+			- il basename del parent è diverso da "module"
+		allora:
+			se:
+				parent è presente nella lista dei padri (ancestors)
+			allora:
+				ritorna
+			altrimenti:
+				push parent in ancestors
+	COMMENT
+	{ ! (( $# )) && [[ -n ${_parent_:-} ]] && ! [[ ${_parent_##*/} == module ]]; } && {
+		[[ " ${_ANCESTORS_[*]:-} " == *" $_parent_ "* ]] && return
+		_ANCESTORS_+=( "$_parent_" )
+	}
+
+	: <<- 'COMMENT'
+		se:
+			non ci sono argomenti
+		allora:
+			imposta gli argomenti a parent
+	COMMENT
+	! (( $# )) && set -- "$_parent_"
+
+
+	: <<- 'COMMENT'
+		asserzione:
+			da qui in poi ci sono argomenti
+	COMMENT
+
+
+	: <<- 'COMMENT'
+		per ognuno degli argomenti, riferito da qui come file:
+	COMMENT
+
+	for _file_; do
+		: <<- 'COMMENT'
+			estrai la prima parte in file che è separata da un '=' e chiamala module
+			questo sarà il namespace opzionale che l'utente ha richiesto o una copia di file
+		COMMENT
+		_module_=${_file_%%=*}
+
+		: <<- 'COMMENT'
+			estrai la seconta parte in file che è separata da un '=' e chiamala file
+			file non cambia se non è stato specificato un namespace opzionale
+		COMMENT
+		_file_=${_file_#*=}
+
+		: <<- 'COMMENT'
+			se:
+				nella mappa dei moduli (modules) è presente file
+			allora:
+				salta al prossimo argomento, qui non c'è niente da fare
+		COMMENT
+		[[ -v "_MODULES_[$_file_]" ]]  && continue
+
+		: <<- 'COMMENT'
+			se:
+				module è uguale a file, cioè l'utente non ha specificato un namespace
+			allora:
+				module viene normalizzato come segue:
+					è preso il suo basename
+					è rimossa l'ultima estensione
+		COMMENT
+		[[ $_module_ == "${_file_:-}" ]]  && {
+			_module_=${_module_##*/}
+			_module_=${_module_%.*}
+		}
+
+		: <<- 'COMMENT'
+			aggiungi alla lista dei prefissi (prefixes) il namespace (module)
+		COMMENT
+		_PREFIXES_+=( "$_module_" )
+
+		: <<- 'COMMENT'
+			- aggiungi alla lista delle liste di alias (aliases) tutti gli alias già definiti
+			- cancella tutti gli alias
+		COMMENT
+		_ALIASES_+=( "$(alias)" )
+		unalias -a
+
+		: <<- 'COMMENT'
+			calcola la lista delle funzioni presenti in file (functions)
+		COMMENT
+		_functions_=$(env -i bash <<- END
+			shopt -s expand_aliases
+			alias source=:
+			\\source "$_file_" &>/dev/null
+			compgen -A function;:
+			END
+		)
+
+
+		: <<- 'COMMENT'
+			genera un prefisso dato dalla concatenazione della lista dei prefissi con '.'
+			e per ognuna delle funzioni crea un alias al nome della funzione con il prefisso
+		COMMENT
+		printf -v _prefix_ %s. "${_PREFIXES_[@]}"
+		for _function_ in $_functions_; do
+			# shellcheck disable=SC2139,SC2140
+			alias "$_function_"="$_prefix_$_function_"
+		done
+
+		: <<- 'COMMENT'
+			aggiungi alla lista dei file (files) il file
+			aggiungi ad una lista di lista di funzioni (funcs) la lista delle funzioni di file
+		COMMENT
+		_files_+=( "$_file_" )
+		_funcs_+=( "$_functions_" )
+
+		: <<- 'COMMENT'
+			- azzera gli argomenti correnti
+			- carica il file
+			- distruggi l'ultimo prefisso dalla lista dei prefissi
+			- estrai l'ultimo file dalla lista dei file e chiamalo file
+			- estrai l'ultima lista di funzioni dalla lista di funzioni funcs e chiamala functions
+			- inserisci nella mappa dei moduli il file
+		COMMENT
+		set --
+		# shellcheck disable=SC1090
+		source "$_file_"
+		unset -v '_PREFIXES_[-1]'
+		_file_=${_files_[-1]}; unset -v "_files_[-1]" # pop
+		_functions_=${_funcs_[-1]}; unset -v "_funcs_[-1]" # pop
+
+		# shellcheck disable=SC2034
+		_MODULES_[$_file_]=''
+
+		: <<- 'COMMENT'
+			- per ognuna delle funzioni in functions cancella l'alias corrispondente
+		COMMENT
+		for _function_ in $_functions_; do
+			unalias "$_function_"
+		done
+
+		: <<- 'COMMENT'
+			- ricarica gli alias esistenti dell'ultima lista di alias in aliases
+			- rimuovi l'ultima lista di alias da aliases
+		COMMENT
+		# shellcheck disable=SC2154
+		eval "${_ALIASES_[-1]}"
+		unset -v '_ALIASES_[-1]'
+
+	done
+
+	! (( ${#_files_[*]} )) && {
+		unset -v _file_
+		unset -v _funcs_
+		#unset -v _prefixes_
+	}
+
+	: <<- 'COMMENT'
+		se:
+			- l'ultimo elemento nella lista del numero di argomenti non è 0
+			- il basename del sorgente è diverso da module
+		allora:
+			elimina l'ultimo elemento dalla lista dei padri (ancestors)
+	COMMENT
+	{ ! (( _NUMARGS_[-1] )) && [[ -n ${BASH_SOURCE[1]} && ${BASH_SOURCE[1]##*/} != module ]] ;} && unset -v '_ANCESTORS_[-1]'
+
+	: <<- 'COMMENT'
+		elimina l'ultimo elemento nella lista del numero di argomenti
+	COMMENT
+	unset -v '_NUMARGS_[-1]'
+	# eval "$_shopt_sav_"
+}
+
+_main_ "$@"
+unset -f _main_
+
+
+
+#unset -v _ANCESTORS_
+#unset -v _ALIASES_
+#unset -v _NUMARGS_
+#unset -v _PREFIXES_

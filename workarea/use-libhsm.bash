@@ -252,9 +252,9 @@ choice1() {
 }
 
 send() {
-	local SIG=$1
-	printf "\n%s:" "${EVENT_NAMES[$SIG]}"
-	hsm_dispatch $SIG
+	local -i sig=$1
+	printf "\n%s:" "${EVENT_NAMES[sig]}"
+	hsm_dispatch $sig
 }
 
 example_machine() {
