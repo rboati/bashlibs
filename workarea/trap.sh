@@ -3,7 +3,7 @@
 set -u
 
 # shellcheck disable=SC1091
-source ../libimport.bash
+source ../bashlibs.bash
 bash_import ../libutils.bash
 
 trap -- "echo aaa" USR1

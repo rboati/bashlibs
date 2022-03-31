@@ -1,151 +1,156 @@
 # shellcheck disable=SC1090
-bash_import ./libipc.bash -p __NS__ -- mkufifo
+bash_import ./libipc.bash -p __NS__ipc_ mkufifo
 
 
-__NS__open_db() {
-	.require_functions __NS__mkufifo
-	local -n __libdata_db="$1"
-	: '{__libdata_db[in]}'> /dev/null '{__libdata_db[out]}'> /dev/null
-	__NS__mkufifo "${__libdata_db[in]}"
-	__NS__mkufifo "${__libdata_db[out]}"
-
-	if [[ -z ${__libdata_db[file]} ]]; then
-		__libdata_db[file]=default.db
-	fi
-
-	if [[ -z ${__libdata_db[vfs]} ]]; then
-		__libdata_db[vfs]=memdb
-	fi
-	( sqlite3 "${__libdata_db[file]}" -batch -line -vfs "${__libdata_db[vfs]}" <&"${__libdata_db[in]}"  >&"${__libdata_db[out]}" ) &
-}
-
-__NS__close_db() {
+# $1: Var name of db connection descriptor
+__NS__open() {
+	pragma require_functions __NS__mkufifo
+	pragma local_prefix x_
 	 # shellcheck disable=SC2178
-	local -n __libdata_db="$1"
-	printf '\n%s\n' '.quit' >&"${__libdata_db[in]}"
-	eval "exec ${__libdata_db[in]}>&- ${__libdata_db[out]}>&-"
+	local -n x_db=$1
+	if [[ -n  ${x_db[in]} && -n ${x_db[out]} ]]; then
+		printerror 'Database is not closed'
+		return 1
+	fi
+	# shellcheck disable=SC2093,SC1083
+	exec {x_db[in]}<>/dev/null {x_db[out]}<>/dev/null
+	__NS__ipc_mkufifo "${x_db[in]}"
+	__NS__ipc_mkufifo "${x_db[out]}"
+
+	if [[ -z ${x_db[file]} ]]; then
+		x_db[file]='default.db'
+	fi
+
+	if [[ -z ${x_db[vfs]} ]]; then
+		x_db[vfs]=memdb
+	fi
+	( exec sqlite3 "${x_db[file]}" -batch -line -vfs "${x_db[vfs]}" <&${x_db[in]}  >&${x_db[out]} ) &
 }
 
+# $1: Var name of db connection descriptor
+__NS__close() {
+	pragma local_prefix x_
+	 # shellcheck disable=SC2178
+	local -n x_db=$1
+	 # shellcheck disable=SC2154
+	if (( x_db[iter] == 1 )); then
+		__NS__flush "${!x_db}"
+	fi
+	# shellcheck disable=SC2086
+	printf '\n%s\n' '.quit' >&${x_db[in]}
+	#eval "exec ${x_db[in]}>&- ${x_db[out]}>&-"
+	#: ${x_db[in]}>&- ${x_db[out]}<&-
+	unset -v 'x_db[in]' 'x_db[out]'
+}
+
+
+# $1: Var name of db connection descriptor
+# $2: Query SQL
 __NS__query() {
+	pragma local_prefix x_
 	 # shellcheck disable=SC2178
-	local -n __libdata_db="$1"
-	local __libdata_sql="$2"
-	local __libdata_line
-	local __libdata_nl=$'\n'
+	local -n x_db=$1
+	if [[ -z  ${x_db[in]} || -z ${x_db[out]} ]]; then
+		printerror 'Database connection is closed'
+		return 1
+	fi
+
+	if (( x_db[iter] == 1 )); then
+		__NS__flush "${!x_db}"
+	fi
+	local x_sql=$2
+	local -i x_iterate=$3
+	local x_field _ x_value x_line
+	local x_nl=$'\n'
+	# shellcheck disable=SC2086
 	{
-		printf '%s\n' "${__libdata_sql};"
+		printf '%s\n' "${x_sql};"
 		printf '%s\n' '.mode list'
-		printf '%s\n' "select printf('${__libdata_nl}EOF');"
+		printf '%s\n' "select printf('${x_nl}EOF');"
 		printf '%s\n' '.mode line'
-	} >&"${__libdata_db[in]}"
-	{
-		while read -r __libdata_line ; do
-			printf '%s\n' "${__libdata_line}"
-			if [[ ${__libdata_line} == EOF ]]; then
-				break
-			fi
-		done
-	} <&"${__libdata_db[out]}"
+	} >&${x_db[in]}
+	x_db[iter]=1
+	if (( x_iterate == 0 )); then
+		__NS__flush "${!x_db}"
+		return 0
+	fi
+	return 1
 }
 
+
+__NS__next() {
+	pragma local_prefix x_
+	 # shellcheck disable=SC2178
+	local -n x_db=$1
+	if [[ -z  ${x_db[in]} || -z ${x_db[out]} ]]; then
+		printerror 'Database connection is closed'
+		return 1
+	fi
+	if (( x_db[iter] != 1 )); then
+		return 1
+	fi
+	local -n x_record=${retvar:?}
+	x_record=()
+	local x_field x_value x_line
+	local IFS=$' '
+	# shellcheck disable=SC2086
+	while read -r x_field _ x_value; do
+		if [[ ${x_field}${x_value} == EOF ]]; then
+			unset  'x_db[iter]'
+			return 1
+		fi
+		if [[ -z ${x_field} ]]; then
+			continue
+		fi
+		while :; do # record found
+	 		# shellcheck disable=SC2034
+			x_record[$x_field]=${x_value}
+			read -r x_field _ x_value
+			if [[ -z ${x_field} ]]; then
+				return 0
+			fi
+		done
+	done <&${x_db[out]}
+}
+
+
+ __NS__flush() {
+	pragma local_prefix x_
+	 # shellcheck disable=SC2178
+	local -n x_db=$1
+	if (( x_db[iter] != 1 )); then
+		return;
+	fi
+	local IFS=$' \t\n'
+	local x_line
+	# shellcheck disable=SC2086
+	while read -r x_line; do
+		if [[ ${x_line} == EOF ]]; then
+			break
+		fi
+	done <&${x_db[out]}
+	unset 'x_db[iter]'
+ }
+
+
+# $1: Var name of db connection descriptor
+# $2: Query SQL
+# $3: Output vars prefix (default: record_)
 __NS__get_record() {
+	pragma local_prefix x_
 	 # shellcheck disable=SC2178
-	local -n __libdata_db="$1"
-	local __libdata_sql="$2"
-	local __libdata_prefix="${3:-record_}"
-	local __libdata_field _ __libdata_value __libdata_line
-	local -i __libdata_exit_code=1
-	local __libdata_nl=$'\n'
-	{
-		printf '%s\n' "${__libdata_sql};"
-		printf '%s\n' '.mode list'
-		printf '%s\n' "select printf('${__libdata_nl}EOF');"
-		printf '%s\n' '.mode line'
-	} >&"${__libdata_db[in]}"
-	{
-		while read -r __libdata_field _ __libdata_value; do
-			if [[ ${__libdata_field}${__libdata_value} == EOF ]]; then
-				return ${__libdata_exit_code}
-			elif [[ -z ${__libdata_field} ]]; then
-				break
-			fi
-			__libdata_exit_code=0
-			__libdata_value="${__libdata_value//\"/\\\"}"
-			__libdata_value="${__libdata_value//\$/\\\$}"
-			eval "${__libdata_prefix}${__libdata_field}=\"${__libdata_value}\""
-		done
-		while read -r __libdata_line; do
-			if [[ ${__libdata_line} == EOF ]]; then
-				break
-			fi
-		done
-		return ${__libdata_exit_code}
-
-	}  <&"${__libdata_db[out]}"
+	local -n x_db=$1
+	local x_sql=$2
+	__NS__query "${!x_db}" "$x_sql" 1
+	if __NS__next "${!x_db}"; then
+		__NS__flush "${!x_db}"
+		return 0
+	else
+		printerror 'Error while executing query %s' "${x_sql@Q}"
+		return 1
+	fi
 }
 
-__NS__get_record_map() {
-	 # shellcheck disable=SC2178
-	local -n __libdata_db="$1"
-	local __libdata_sql="$2"
-	local __libdata_array_name="${3:-record}"
-	local __libdata_field _ __libdata_value __libdata_line
-	local -i __libdata_exit_code=1
-	local __libdata_nl=$'\n'
-	{
-		printf '%s\n' "${__libdata_sql};"
-		printf '%s\n' '.mode list'
-		printf '%s\n' "select printf('${__libdata_nl}EOF');"
-		printf '%s\n' '.mode line'
-	} >&"${__libdata_db[in]}"
-	{
-		while read -r __libdata_field _ __libdata_value; do
-			if [[ ${__libdata_field}${__libdata_value} == EOF ]]; then
-				return ${__libdata_exit_code}
-			elif [[ -z ${__libdata_field} ]]; then
-				break
-			fi
-			__libdata_exit_code=0
-			__libdata_value="${__libdata_value//\"/\\\"}"
-			__libdata_value="${__libdata_value//\$/\\\$}"
-			eval "${__libdata_array_name}+=( [${__libdata_field}]=\"${__libdata_value}\" )"
-		done
-		while read -r __libdata_line; do
-			if [[ ${__libdata_line} == EOF ]]; then
-				break
-			fi
-		done
-		return ${__libdata_exit_code}
-
-	}  <&"${__libdata_db[out]}"
-}
-
-__NS__get_records() {
-	 # shellcheck disable=SC2178
-	local -n __libdata_db="$1"
-	local __libdata_sql="$2"
-	local __libdata_prefix="${3:-record_}"
-	local __libdata_field _ __libdata_value
-	local __libdata_nl=$'\n'
-	{
-		printf '%s\n' "${__libdata_sql};"
-		printf '%s\n' '.mode list'
-		printf '%s\n' "select printf('${__libdata_nl}EOF');"
-		printf '%s\n' '.mode line'
-	} >&"${__libdata_db[in]}"
-	{
-		while read -r __libdata_field _ __libdata_value; do
-			if [[ ${__libdata_field}${__libdata_value} == EOF ]]; then
-				break
-			elif [[ -z ${__libdata_field} ]]; then
-				continue
-			fi
-			__libdata_value="${__libdata_value//\"/\\\"}"
-			__libdata_value="${__libdata_value//\$/\\\$}"
-			eval "${__libdata_prefix}${__libdata_field}+=( \"${__libdata_value}\" )"
-		done
-	}  <&"${__libdata_db[out]}"
-}
 
 __NS__sql_quote() {
 	local value="$1"
@@ -161,96 +166,4 @@ __NS__escape_nl() {
 }
 
 
-__NS__parse_record() {
-	local prefix="${1:-record_}"
-	local field _ value
-	while read -r field _ value; do
-		if [[ ${field}${value} == EOF ]]; then
-			return 1
-		elif [[ -z ${field} ]]; then
-			return 0
-		fi
-		value="${value//\"/\\\"}"
-		value="${value//\$/\\\$}"
-		eval "${prefix}${field}=\"${value}\""
-	done
-}
-
-
-__NS__parse_record_map() {
-	local __libdata_array_name="${1:-record}"
-	local __libdata_field _ __libdata_value
-	while read -r __libdata_field _ __libdata_value; do
-		if [[ ${__libdata_field}${__libdata_value} == EOF ]]; then
-			return 1
-		elif [[ -z ${__libdata_field} ]]; then
-			return 0
-		fi
-		__libdata_value="${__libdata_value//\"/\\\"}"
-		__libdata_value="${__libdata_value//\$/\\\$}"
-		eval "${__libdata_array_name}+=( [${__libdata_field}]=\"${__libdata_value}\" )"
-	done
-}
-
-__NS__iter_record() {
-	 # shellcheck disable=SC2178
-	local -n __libdata_db="$1"
-	local __libdata_sql="$2"
-	local __libdata_prefix="${3:-record_}"
-	local __libdata_field _ __libdata_value __libdata_line
-	local __libdata_nl=$'\n'
-	while :; do
-		case "${__libdata_db[iter]}" in
-		0|'') # init
-			{
-				printf '%s\n' "${__libdata_sql};"
-				printf '%s\n' '.mode list'
-				printf '%s\n' "select printf('${__libdata_nl}EOF');"
-				printf '%s\n' '.mode line'
-			} >&"${__libdata_db[in]}"
-			__libdata_db[iter]=1
-			continue
-			;;
-		1) # iterating
-			{
-				while read -r __libdata_field _ __libdata_value; do
-					if [[ ${__libdata_field}${__libdata_value} == EOF ]]; then
-						unset  '__libdata_db[iter]'
-						return 1
-					fi
-					if [[ -z ${__libdata_field} ]]; then
-						continue
-					fi
-					while :; do # record found
-						__libdata_value="${__libdata_value//\"/\\\"}"
-						__libdata_value="${__libdata_value//\$/\\\$}"
-						eval "${__libdata_prefix}${__libdata_field}=\"${__libdata_value}\""
-						read -r __libdata_field _ __libdata_value
-						if [[ -z ${__libdata_field} ]]; then
-							return 0
-						fi
-					done
-				done
-			} <&"${__libdata_db[out]}"
-			;;
-		2) # flush
-			{
-				while read -r __libdata_line; do
-					if [[ ${__libdata_line} == EOF ]]; then
-						break
-					fi
-				done
-			} <&"${__libdata_db[out]}"
-			unset '__libdata_db[iter]'
-			return 1
-			;;
-		esac
-	done
-}
-
- __NS__flush_iter() {
-	 # shellcheck disable=SC2178
-	local -n __libdata_db="$1"
-	__libdata_db[iter]=2 # flush
- }
 

@@ -1,6 +1,6 @@
 #!/bin/bash
 
-source ../libimport.bash
+source ../bashlibs.bash
 bash_import libfile.bash
 
 

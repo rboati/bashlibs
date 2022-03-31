@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # shellcheck disable=SC1091
-source ../libimport.bash
+source ../bashlibs.bash
 DEBUG=1 bash_import ../libtest.bash
 
 

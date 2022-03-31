@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # shellcheck disable=SC1091
-source ../libimport.bash
+source ../bashlibs.bash
 bash_import ../libipc.bash mkufifo
 bash_import ../libdebug.bash
 

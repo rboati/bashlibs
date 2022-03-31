@@ -1,7 +1,9 @@
 
 
-declare -gA __NS__TESTSUITES=()
-declare -gA __NS__TESTS=()
+__NS__initialize_libtest() {
+	declare -gA __NS__TESTSUITES=()
+	declare -gA __NS__TESTS=()
+}
 
 
 __NS__get_test_functions() {

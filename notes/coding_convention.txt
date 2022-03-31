@@ -1,0 +1,45 @@
+
+= Bash coding convention
+
+== Variables
+- Always declare explicitely a variable to express clearly the point in which it's created.
+	- RATIO: Explicit it's better.
+- Use "declare -g" explicitely for global variables, even in the main scope.
+	- RATIO: Explicit it's better.
+	- RATIO: File could be sourced inside a function and mess with your "globals".
+- Use "local" for local variables.
+	- RATIO: Explicit it's better.
+- Use declare flags as much as possible to explicit define variables.
+	- RATIO: Explicit it's better.
+- Use lowercase identifiers for local or global variables that are referenced only in code block in which are defined and
+  use UPPERCASE identifiers for local or global variables that may have an effect also in called functions and commands.
+  As a particular case of this, use UPPERCASE identifiers for variables passed to functions through the environment (bash keywords arguments).
+	- RATIO: It could make code a clearer to distinguish variables coming from outside the function.
+	- EXCEPTION: The variable "retvar" (that contains the name of the variable that will receive the return value of a function) because is not meant to be declared.
+
+
+
+== Functions
+- Use the short form for definning a function:
+	function_name + '()' + {
+- Use lowercase identifiers for function names.
+	Exception for the prefix/namespace part.
+- Use only alfanumeric or '_' chars, avoid puntuaction chars ( [.-@:] )
+	Exceptions for special use cases, ex: separators for the namespaces, etc.
+
+
+== Strings
+- Prefer single quoting '...' whenever possible.
+	- RATIO: Explicit it's better.
+
+
+== Statements
+- Try to avoid long compound statements.
+- Use bash [[...]] and ((...)) instead of [...] and (...).
+- Generally prefer the long "if [[...]]; then ...; else ...; fi" syntax to the shorter [[...]] && ... compound statements.
+- Put "case WORD in" on the same line.
+- Put "if COMMANDS; then"  on the same line (for the simplest case where COMMANDS is a single command).
+- Put "for COMMANDS; do"   on the same line (for the simplest case where COMMANDS is a single command).
+- Put "while COMMANDS; do" on the same line (for the simplest case where COMMANDS is a single command).
+- Put "until COMMANDS; do" on the same line (for the simplest case where COMMANDS is a single command).
+

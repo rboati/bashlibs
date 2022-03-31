@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # shellcheck disable=SC1091
-source ../libimport.bash
+source ../bashlibs.bash
 ASSERT=1 bash_import ../libassert.bash
 
 exit() {
