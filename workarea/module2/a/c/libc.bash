@@ -17,8 +17,8 @@ __NS__func() {
 
 __NS__func1() {
 	pragma require_functions __NS__func
-	local __ns__mylocal1=1
-	local __ns__mylocal2=1
+	local mylocal1=1
+	local mylocal2=1
 	pragma local_prefix custom_
 	local custom_mylocal1=1
 	local custom_mylocal2=1

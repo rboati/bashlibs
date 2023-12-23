@@ -15,6 +15,10 @@ function comment() {
 comment <<-'EOC'
 	Comment example
 EOC
+
+comment '
+	Comment example
+'
 #endregion
 
 
@@ -51,56 +55,78 @@ uuid_compress() {
 	local "${retvar:?}" && upvar "$retvar" "$compressed_uuid"
 }
 
-comment << 'EOC'
-__libimport_generate_functions_maps() {
-	local ns=${1:-}
-	local -a function_list
-	IFS=$'\n' read -r -d '' -a function_list < <(compgen -A function)
-	local -A __libimport_FUNCTION_CODE_MAP __libimport_REQUIRED_FUNCTIONS_MAP __libimport_REQUIRED_COMMANDS_MAP
-	local fun line token
-	local -a token_list
+
+__libimport_filter_function_code() {
+	local ns=$1
+	local line token
 	local IFS=$' \t\n'
-	local global_prefix='__NS__'
+	local global_prefix='__N''S__'
+	local local_prefix=''
+	local uuid=''
 	local pragma_re='^\s*pragma\s+(\w+)\s*(.*);$'
 	local prefix_re1='^(.*\b)' prefix_re2='(\w+.*)$'
-	for fun in "${function_list[@]}"; do
-		[[ $fun == "${FUNCNAME[0]}" ]] && continue
-		[[ $fun == bash_import ]] && continue
-		local uuid=''
-		local local_prefix=''
-		local -A required_function_set=() required_command_set=()
-		local body=''
-		while read -r line; do
-			if [[ $line =~ $pragma_re ]]; then
-				# shellcheck disable=SC2162
-				read -d '' -a token_list <<<"${BASH_REMATCH[2]}"
-				case ${BASH_REMATCH[1]} in
-				require_functions)
-					for token in "${token_list[@]}"; do
-						required_function_set[$token]=1
-					done
-					continue
-					;;
-				require_commands)
-					for token in "${token_list[@]}"; do
-						required_command_set[$token]=1
-					done
-					continue
-					;;
-				local_prefix)
-					if (( ${#token_list[@]} > 0 )); then
-						local_prefix=${token_list[0]}
-						if [[ -z $uuid ]]; then
-							IFS= read -r -d '' uuid < "/proc/sys/kernel/random/uuid"
-							retvar=uuid uuid_compress "$uuid"
-						fi
-					else
-						local_prefix=''
-					fi
-					continue
-					;;
+	local pragma_begin_re='^\s*pragma\s+begin\s+([_[:alnum:]]+)\s*(.*);$'
+	local pragma_end_re='^\s*pragma\s+end\s*(.*);$'
+	local -a token_list
+	local -Ai strip_pragma_set=()
+	local pragma
+	if [[ -n $STRIP_PRAGMA ]]; then
+		# shellcheck disable=SC2086
+		local -a strip_pragma_list=()
+		IFS=$' \t\n,:' read -r -d '' -a strip_pragma_list <<< "$STRIP_PRAGMA"
+		for pragma in "${strip_pragma_list[@]}"; do
+			strip_pragma_set[$pragma]=1
+		done
+		#region Expand directives
+		while (( ${#strip_pragma_list[@]} > 0 )); do
+			pragma=${strip_pragma_list[0]} && strip_pragma_list=( "${strip_pragma_list[@]:1}" ) # pop from head
+			if [[ $pragma == 'loglevel='* ]]; then
+				local loglevel=${pragma#loglevel=}
+				loglevel=${loglevel,,}
+				case $loglevel in
+					off|0)   ;&
+					fatal|1) strip_pragma_set['loglevel=error']=1; strip_pragma_set['loglevel=2']=1 ;&
+					error|2) strip_pragma_set['loglevel=warn']=1 ; strip_pragma_set['loglevel=3']=1 ;&
+					warn|3)  strip_pragma_set['loglevel=info']=1 ; strip_pragma_set['loglevel=4']=1 ;&
+					info|4)  strip_pragma_set['loglevel=debug']=1; strip_pragma_set['loglevel=5']=1 ;&
+					debug|5) strip_pragma_set['loglevel=trace']=1; strip_pragma_set['loglevel=6']=1 ;&
+					trace|6) ;;
 				esac
 			fi
+		done
+		#endregion Expand directives
+	fi
+	local body=''
+	local -i state=0
+	while read -r line; do
+		case $state in
+		0) # no stripping
+			if [[ $line =~ $pragma_begin_re ]]; then
+				pragma=${BASH_REMATCH[1]}
+				if [[ ${strip_pragma_set[$pragma]} == 1 ]]; then
+					(( ++level ))
+					state=1 && continue
+				fi
+			elif [[ $line =~ $pragma_re ]]; then
+				read -r -d '' -a token_list <<<"${BASH_REMATCH[2]}"
+				case ${BASH_REMATCH[1]} in
+					local_prefix)
+						if (( ${#token_list[@]} > 0 )); then
+							local_prefix=${token_list[0]}
+							if [[ -z $uuid ]]; then
+								IFS= read -r -d '' uuid < '/proc/sys/kernel/random/uuid'
+								retvar=uuid uuid_compress "$uuid"
+							fi
+						else
+							local_prefix=''
+						fi
+						continue
+						;;
+					# TODO: filter local pragmas
+				esac
+				continue
+			fi
+			#region Replace namespace prefixes
 			# Replace local namespace
 			if [[ -n $local_prefix ]]; then
 				local undone_part=$line done_part=''
@@ -108,301 +134,40 @@ __libimport_generate_functions_maps() {
 				# Because of the greedy operator *, the unmatched part is on the left (match group 2)
 				while [[ $undone_part =~ ${prefix_re1}"$local_prefix"${prefix_re2} ]]; do
 					undone_part=${BASH_REMATCH[1]}
-					done_part=${ns}${BASH_REMATCH[2]}$done_part
+					done_part=__${uuid}_${BASH_REMATCH[2]}${done_part}
 					line=${undone_part}${done_part}
 				done
 			fi
 
 			# Replace global namespace
-			local undone_part=$line done_part=''
-			# Avoiding infinite loop by looking for a match only in the previously unmatched part
-			# Because of the greedy operator *, the unmatched part is on the left (match group 2)
-			while [[ $undone_part =~ ${prefix_re1}"$global_prefix"${prefix_re2} ]]; do
-				undone_part=${BASH_REMATCH[1]}
-				done_part=${ns}${BASH_REMATCH[2]}$done_part
-				line=${undone_part}${done_part}
-			done
-			body+=${line}$'\n'
-		done < <(declare -pf "$fun")
-		fun=${fun/$global_prefix/$ns}
-		__libimport_FUNCTION_CODE_MAP[$fun]=$body
-		local -a required_function_list=( "${!required_function_set[@]}" )
-		__libimport_REQUIRED_FUNCTIONS_MAP[$fun]=${required_function_list[*]/#$global_prefix/$ns}
-		__libimport_REQUIRED_COMMANDS_MAP[$fun]=${!required_command_set[*]}
-	done
-	declare -p __libimport_REQUIRED_FUNCTIONS_MAP __libimport_REQUIRED_COMMANDS_MAP __libimport_FUNCTION_CODE_MAP
-}
+			if [[ $global_prefix != "$ns" ]]; then
+				local undone_part=$line done_part=''
+				# Avoiding infinite loop by looking for a match only in the previously unmatched part
+				# Because of the greedy operator *, the unmatched part is on the left (match group 2)
+				while [[ $undone_part =~ ${prefix_re1}"$global_prefix"${prefix_re2} ]]; do
+					undone_part=${BASH_REMATCH[1]}
+					done_part=${ns}${BASH_REMATCH[2]}${done_part}
+					line=${undone_part}${done_part}
+				done
+			fi
+			#endregion Replace namespace prefixes
 
-bash_import() {
-	local __libimport_module_path=${1%=*}
-	local __libimport_ns=''
-	shift
-	while ((${#@})); do
-		case $1 in
-		--)
-			shift
-			break
+			body+=${line}$'\n'
 			;;
-		--prefix | -p)
-			__libimport_ns=$2
-			shift 2
-			;;
-		-*) #TODO
-			shift
-			break
-			;;
-		*)
-			break
+		1) # stripping
+			if [[ $line =~ $pragma_begin_re ]]; then
+				(( ++level ))
+			elif [[ $line =~ $pragma_end_re ]]; then
+				(( --level ))
+				if (( level == 0 )); then
+					state=0 && continue
+				fi
+				if (( level < 0 )); then
+					return 1
+				fi
+			fi
 			;;
 		esac
-	done
-	local IFS=$' \t\n'
-	local -a __libimport_library_path
-
-	local __FILE__=${BASH_SOURCE[1]}
-	local __DIR__=${__FILE__%/*}
-
-	#region Find library
-	local __libimport_import_type __libimport_module_found
-	if [[ ${__libimport_module_path} == /* ]]; then
-		# absolute path
-		__libimport_import_type=absolute
-		__FILE__=${__libimport_module_path}
-		__libimport_module_found=1
-	elif [[ ${__libimport_module_path} == ./* || ${__libimport_module_path} == ../* ]]; then
-		# relative path
-		__libimport_import_type=relative
-		__FILE__=$__DIR__/${__libimport_module_path}
-		__libimport_module_found=1
-	else
-		# search library path
-		__libimport_import_type=library
-		IFS=':' read -r -d '' -a __libimport_library_path <<<"$BASH_LIBRARY_PATH"
-		local __libimport_item
-		for __libimport_item in "${__libimport_library_path[@]}"; do
-			if [[ -r ${__libimport_item}/${__libimport_module_path} ]]; then
-				__FILE__=${__libimport_item}/${__libimport_module_path}
-				__libimport_module_found=1
-				break
-			fi
-		done
-		unset -v __libimport_item
-	fi
-
-	if ((__libimport_module_found == 1)); then
-		if ! __FILE__=$(readlink -e "$__FILE__") || [[ -z $__FILE__ ]]; then
-			__libimport_module_found=0
-		fi
-	fi
-
-	if ((__libimport_module_found == 0)); then
-		die "Importing from ${__libimport_import_type} path: '${__libimport_module_path}' not found! (${__FILE__})"
-	fi
-	unset -v __libimport_import_type __libimport_module_found
-	#endregion Find library
-
-	#region Create symbol data structures
-	local -A __libimport_FUNCTION_CODE_MAP __libimport_REQUIRED_FUNCTIONS_MAP __libimport_REQUIRED_COMMANDS_MAP
-
-	eval "$(
-		exec bash --noprofile --norc -s <<-EOF
-			{
-				builtin source "${BASH_SOURCE[0]}"
-				builtin source "$__FILE__"
-			} > /dev/null
-			__libimport_generate_functions_maps "$__libimport_ns"
-		EOF
-	)"
-	#endregion Create symbol data structures
-
-
-	# the import list defaults to all functions
-	{
-		if (($# == 0)); then # default: import all symbols
-			local -a __libimport_tmp_list=()
-			local __libimport_item
-			for __libimport_item in "${!__libimport_FUNCTION_CODE_MAP[@]}"; do
-				if [[ ${__libimport_item} == ${__libimport_ns}* ]]; then
-					__libimport_tmp_list+=("${__libimport_item}")
-				fi
-			done
-			set -- "${__libimport_tmp_list[@]}"
-			#set -- "${!__libimport_FUNCTION_CODE_MAP[@]}"
-		else
-			set -- "${@/#/${__libimport_ns}}" # oneliner: add prefix to all elements in the list
-		fi
-
-	}
-
-	#region Topological sort
-	local -A __libimport_adj_map=()
-	{ # preparing __libimport_adj_map
-		local -A __libimport_tmp_set=()
-		local __libimport_item __libimport_item2
-		for __libimport_item in "$@"; do
-			if [[ -v __libimport_FUNCTION_CODE_MAP[$__libimport_item] ]]; then
-				__libimport_tmp_set[$__libimport_item]=1
-			else
-				printwarn "Missing symbol '$__libimport_item' in module ${__FILE__}"
-			fi
-		done
-		# now __libimport_tmp_set is the set of requested symbols
-		while ((${#__libimport_tmp_set[@]} > 0)); do
-			for __libimport_item in "${!__libimport_tmp_set[@]}"; do
-				__libimport_adj_map[${__libimport_item}]=${__libimport_REQUIRED_FUNCTIONS_MAP[${__libimport_item}]}
-				unset -v '__libimport_tmp_set[$__libimport_item]'
-				for __libimport_item2 in ${__libimport_REQUIRED_FUNCTIONS_MAP[${__libimport_item}]}; do __libimport_tmp_set[${__libimport_item2}]=1; done
-			done
-		done
-		unset -v __libimport_tmp_set __libimport_item __libimport_item2
-	}
-
-	local -a __libimport_sorted_list=()
-	{ # topological sort
-		local -a __libimport_tmp_stack=() __libimport_tmp_list
-		local -i __libimport_index
-		local __libimport_item
-
-		while :; do
-			for __libimport_item in "${!__libimport_adj_map[@]}"; do
-				if [[ ! -v __libimport_adj_map[${__libimport_item}] || ${__libimport_adj_map[${__libimport_item}]} == '' ]]; then
-					__libimport_tmp_stack+=("${__libimport_item}")
-					unset -v '__libimport_adj_map[$__libimport_item]'
-				fi
-			done
-			((${#__libimport_tmp_stack[@]} == 0)) && break
-			local __libimport_stack_item=${__libimport_tmp_stack[0]}
-			unset -v '__libimport_tmp_stack[0]'
-			__libimport_tmp_stack=("${__libimport_tmp_stack[@]}")
-			__libimport_sorted_list+=("$__libimport_stack_item")
-			for __libimport_item in "${!__libimport_adj_map[@]}"; do
-				read -r -d '' -a __libimport_tmp_list <<<"${__libimport_adj_map[${__libimport_item}]}"
-				for __libimport_index in "${!__libimport_tmp_list[@]}"; do
-					if [[ ${__libimport_tmp_list[__libimport_index]} == "$__libimport_stack_item" ]]; then
-						unset -v '__libimport_tmp_list[__libimport_index]'
-					fi
-				done
-				__libimport_adj_map[${__libimport_item}]=${__libimport_tmp_list[*]}
-			done
-		done
-		unset -v __libimport_tmp_stack __libimport_tmp_list __libimport_index __libimport_item
-	}
-
-	unset -v __libimport_adj_map
-	#endregion Topological sort
-
-	__DIR__="${__FILE__%/*}"
-
-	#region Importing requested symbols and their dependencies
-	{
-		local __libimport_item __libimport_item2
-		local -A __libimport_commands_set=()
-		for __libimport_item in "${__libimport_sorted_list[@]}"; do
-			for __libimport_item2 in ${__libimport_REQUIRED_COMMANDS_MAP[${__libimport_item}]}; do
-				[[ -v __libimport_commands_set[${__libimport_item2}] ]] && continue
-				# accept also aliases and functions as command replacement
-				type -at "${__libimport_item2}" &>/dev/null || exit 3
-				__libimport_commands_set[${__libimport_item2}]=1
-			done
-			if [[ -v __libimport_FUNCTION_CODE_MAP[${__libimport_item}] ]]; then
-				# shellcheck disable=SC2001
-				if declare -F "$__libimport_item" &>/dev/null; then
-					printwarn "A function '$__libimport_item' already exists, overwriting."
-				fi
-				printtrace 'About to eval "%s"' "$__libimport_item"
-				eval "${__libimport_FUNCTION_CODE_MAP[$__libimport_item]}"
-				printtrace 'End of eval "%s"' "$__libimport_item"
-
-				if [[ -n $STRIP_PRAGMAS ]]; then
-					# shellcheck disable=SC2086
-					IFS=$' \t\n,:' read -r -d '' -a __libimport_tmp_list <<< "$STRIP_PRAGMAS"
-					printf -v __libimport_item2 -- '%s,' "${__libimport_tmp_list[@]}" && __libimport_item2=${__libimport_item2%,} # string join
-					printinfo 'Stripping function %s of pragmas %s' "$__libimport_item" "$__libimport_item2"
-					strip_function "$__libimport_item" "${__libimport_tmp_list[@]}"
-				fi
-			fi
-		done
-		if [[ -n $DEBUG ]]; then
-			IFS= read -r __libimport_item2 < '/proc/sys/kernel/random/uuid'
-			__libimport_item2="/tmp/$USER/$$/$__libimport_item2-${__FILE__##*/}"
-			mkdir -p "/tmp/$USER/$$/"
-			for __libimport_item in "${__libimport_sorted_list[@]}"; do
-				declare -f "$__libimport_item"
-			done > "$__libimport_item2"
-			# shellcheck disable=SC1090
-			source "$__libimport_item2"
-		fi
-		unset -v __libimport_item __libimport_item2 __libimport_commands_set
-		unset -v __libimport_sorted_list
-	}
-	#endregion Importing requested symbols and their dependencies
-
-	unset -v __libimport_module_path __libimport_module_found
-	unset -v __libimport_FUNCTION_CODE_MAP __libimport_REQUIRED_FUNCTIONS_MAP __libimport_REQUIRED_COMMANDS_MAP
-	unset -v "${!__libimport_@}"
-}
-EOC
-
-
-__libimport_filter_function_code() {
-	local ns=${1:?}
-	local line token
-	local IFS=$' \t\n'
-	local global_prefix='__N''S__'
-	local pragma_re='^\s*pragma\s+(\w+)\s*(.*);$'
-	local prefix_re1='^(.*\b)' prefix_re2='(\w+.*)$'
-	local uuid=''
-	local local_prefix=''
-	local body=''
-	local -a token_list
-	while read -r line; do
-		#region Replace local pragmas
-		if [[ $line =~ $pragma_re ]]; then
-			# shellcheck disable=SC2162
-			read -d '' -a token_list <<<"${BASH_REMATCH[2]}"
-			case ${BASH_REMATCH[1]} in
-				local_prefix)
-					if (( ${#token_list[@]} > 0 )); then
-						local_prefix=${token_list[0]}
-						if [[ -z $uuid ]]; then
-							IFS= read -r -d '' uuid < '/proc/sys/kernel/random/uuid'
-							retvar=uuid uuid_compress "$uuid"
-						fi
-					else
-						local_prefix=''
-					fi
-					continue
-					;;
-				# TODO: filter local pragmas
-			esac
-		fi
-		#endregion Replace local pragmas
-
-		#region Replace namespace prefixes
-		# Replace local namespace
-		if [[ -n $local_prefix ]]; then
-			local undone_part=$line done_part=''
-			# Avoiding infinite loop by looking for a match only in the previously unmatched part
-			# Because of the greedy operator *, the unmatched part is on the left (match group 2)
-			while [[ $undone_part =~ ${prefix_re1}"$local_prefix"${prefix_re2} ]]; do
-				undone_part=${BASH_REMATCH[1]}
-				done_part=__${uuid}_${BASH_REMATCH[2]}${done_part}
-				line=${undone_part}${done_part}
-			done
-		fi
-
-		# Replace global namespace
-		local undone_part=$line done_part=''
-		# Avoiding infinite loop by looking for a match only in the previously unmatched part
-		# Because of the greedy operator *, the unmatched part is on the left (match group 2)
-		while [[ $undone_part =~ ${prefix_re1}"$global_prefix"${prefix_re2} ]]; do
-			undone_part=${BASH_REMATCH[1]}
-			done_part=${ns}${BASH_REMATCH[2]}${done_part}
-			line=${undone_part}${done_part}
-		done
-		#endregion Replace namespace prefixes
-
-		body+=${line}$'\n'
 	done
 
 	printdebug 'Function body before returning: %s' "$body"
@@ -452,7 +217,7 @@ __libimport_generate_functions_maps() {
 
 bash_import() {
 	local __libimport_module_path=${1%=*}
-	local __libimport_ns=''
+	local __libimport_ns=${1#*=}
 	shift
 	while ((${#@})); do
 		case $1 in
@@ -602,7 +367,7 @@ bash_import() {
 				__libimport_adj_map[${__libimport_item}]=${__libimport_tmp_list[*]}
 			done
 		done
-		unset -v __libimport_tmp_stack __libimport_tmp_list __libimport_index __libimport_item
+		unset -v __libimport_tmp_stack __libimport_tmp_list __libimport_index __libimport_item __libimport_stack_item
 	}
 
 	unset -v __libimport_adj_map
@@ -629,32 +394,23 @@ bash_import() {
 				fi
 				printtrace 'About to eval "%s"' "$__libimport_item"
 				printdebug 'Function body before filter: "%s"' "${__libimport_FUNCTION_CODE_MAP[$__libimport_item]}"
-				local fun
-				retvar=fun __libimport_filter_function_code "$__libimport_ns" <<< "${__libimport_FUNCTION_CODE_MAP[$__libimport_item]}"
-				printdebug 'Function body after filter: "%s"' "$fun"
-				eval "$fun"
+				local __libimport_fun
+				retvar=__libimport_fun __libimport_filter_function_code "$__libimport_ns" <<< "${__libimport_FUNCTION_CODE_MAP[$__libimport_item]}"
+				printdebug 'Function body after filter: "%s"' "$__libimport_fun"
+				eval "$__libimport_fun"
 				printtrace 'End of eval "%s"' "$__libimport_item"
-
-				# if [[ -n $STRIP_PRAGMAS ]]; then
-				# 	# shellcheck disable=SC2086
-				# 	IFS=$' \t\n,:' read -r -d '' -a __libimport_tmp_list <<< "$STRIP_PRAGMAS"
-				# 	printf -v __libimport_item2 -- '%s,' "${__libimport_tmp_list[@]}" && __libimport_item2=${__libimport_item2%,} # string join
-				# 	printinfo 'Stripping function %s of pragmas %s' "$__libimport_item" "$__libimport_item2"
-				# 	strip_function "$__libimport_item" "${__libimport_tmp_list[@]}"
-				# fi
 			fi
 		done
 		if [[ -n $DEBUG ]]; then
-			IFS= read -r __libimport_item2 < '/proc/sys/kernel/random/uuid'
-			__libimport_item2="/tmp/$USER/$$/$__libimport_item2-${__FILE__##*/}"
-			mkdir -p "/tmp/$USER/$$/"
+			mkdir -p "/tmp/$USER/$$"
+			__libimport_item2=$(mktemp "/tmp/$USER/$$/XXX-${__FILE__##*/}")
 			for __libimport_item in "${__libimport_sorted_list[@]}"; do
 				declare -f "$__libimport_item"
 			done > "$__libimport_item2"
 			# shellcheck disable=SC1090
 			source "$__libimport_item2"
 		fi
-		unset -v __libimport_item __libimport_item2 __libimport_commands_set
+		unset -v __libimport_item __libimport_item2 __libimport_commands_set __libimport_fun
 		unset -v __libimport_sorted_list
 	}
 	#endregion Importing requested symbols and their dependencies
@@ -664,7 +420,7 @@ bash_import() {
 	unset -v "${!__libimport_@}"
 }
 
-@pragma() {
+function_pragma() {
 	local name=${1?missing function name}
 	local body; body=$(declare -f "$name")
 	retvar=body __libimport_filter_function_code <<<"$body"
@@ -804,68 +560,6 @@ die() {
 }
 
 
-
-strip_function() {
-	local name=${1:?}
-	shift
-	local IFS=$' \t\n'
-	local -i level=0 state=0
-	local decl directive line
-	decl=$(declare -pf "$name")
-	while (( $# > 0 )); do
-		directive=$1
-		shift
-		# TODO: optimize loglevel management
-		if [[ $directive == 'loglevel='* ]]; then
-			local loglevel=${directive#loglevel=}
-			loglevel=${loglevel,,}
-			case $loglevel in
-				off|0)   ;&
-				fatal|1) set -- loglevel=error loglevel=2 "$@" ;&
-				error|2) set -- loglevel=warn  loglevel=3 "$@" ;&
-				warn|3)  set -- loglevel=info  loglevel=4 "$@" ;&
-				info|4)  set -- loglevel=debug loglevel=5 "$@" ;&
-				debug|5) set -- loglevel=trace loglevel=6 "$@" ;&
-				trace|6) ;;
-				*)
-			esac
-		fi
-		decl=$(
-			while read -r line; do
-				case $state in
-					0) # no stripping
-						if [[ $line == "pragma begin $directive;" || $line == "pragma begin $directive "* ]]; then
-							(( ++level ))
-							state=1
-							continue
-						elif [[ $line == 'end;' || $line == 'end '* ]]; then
-							return 1
-						elif [[ $line == "pragma $directive;" || $line == "pragma $directive "* ]]; then
-							continue
-						fi
-						printf -- '%s\n' "$line"
-						;;
-					1) # stripping
-						if [[ $line == 'pragma begin '* ]]; then
-							(( ++level ))
-						elif [[ $line == 'pragma end;' || $line == 'pragma end '* ]]; then
-							(( --level ))
-							if (( level == 0 )); then
-								state=0
-								continue
-							fi
-							if (( level < 0 )); then
-								return 1
-							fi
-						fi
-						;;
-				esac
-			done <<< "$decl"
-		)
-	done
-	eval "$decl"
-}
-
 # shopt -s expand_aliases
 # alias begincomment="'comment' <<- 'endcomment'"
 
@@ -919,6 +613,18 @@ loglevel_filter() {
 	# shellcheck disable=SC2034
 	local IFS='' LC_ALL=C msg
 	while read -r msg; do
+		printf -- "${prefix}"'%s\n' "$msg"
+	done
+}
+
+logproto_filter() {
+	local -r prefix=$1
+	# shellcheck disable=SC2034
+	local IFS='' LC_ALL=C msg
+	while read -r msg; do
+		case $msg in
+
+		esac
 		printf -- "${prefix}"'%s\n' "$msg"
 	done
 }
@@ -1024,7 +730,7 @@ set_loglevel() {
 			break
 		done
 	fi
-	generate_log_functions $loglevel
+	generate_log_functions "$loglevel"
 	return $err
 }
 

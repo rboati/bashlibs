@@ -1,35 +1,38 @@
 
 
+__NS__initialize_libdebug() {
+	declare -gA __NS__BREAKPOINTS=()
+	declare -ga __NS__DATA_BREAKPOINTS=()
+	declare -ga __NS__WATCHES=()
+	declare -g  __NS__STEPMODE=1
+	declare -ga __NS__STEPMODE_NAMES=( CONT STEP NEXT RETURN )
+	declare -gi __NS__RETURN_BREAK=0
+	declare -gi __NS____EXITCODE__
+	declare -gi __NS____CALLER_BASHPID__
+	declare -ga __NS____CALLER_ARGS__
+	declare -ga __NS____CALLER_LOCALS__
+	declare -gA __NS__DEBUGGER_PROPERTIES=(
+		[auto]="stack list locals watch"
+		[locals.auto]=0
+		[list.auto]=1
+		[list.context]=1
+		[stack.auto]=1
+		[watch.auto]=1
+		[color]=1
+		[color.default]='2'
+		[color.default.off]='22'
+		[color.prompt]='33'
+		[color.prompt.off]='39'
+		[color.line]='34'
+		[color.line.off]='39'
+		[color.title]='1'
+		[color.title.off]='22'
+		[color.value]='34'
+		[color.value.off]='39'
+	)
 
-declare -gA __NS__BREAKPOINTS=()
-declare -ga __NS__DATA_BREAKPOINTS=()
-declare -ga __NS__WATCHES=()
-declare -g  __NS__STEPMODE=1
-declare -ga __NS__STEPMODE_NAMES=( CONT STEP NEXT RETURN )
-declare -gi __NS__RETURN_BREAK=0
-declare -gi __NS____EXITCODE__
-declare -gi __NS____CALLER_BASHPID__
-declare -ga __NS____CALLER_ARGS__
-declare -ga __NS____CALLER_LOCALS__
-declare -gA __NS__DEBUGGER_PROPERTIES=(
-	[auto]="stack list locals watch"
-	[locals.auto]=0
-	[list.auto]=1
-	[list.context]=1
-	[stack.auto]=1
-	[watch.auto]=1
-	[color]=1
-	[color.default]='2'
-	[color.default.off]='22'
-	[color.prompt]='33'
-	[color.prompt.off]='39'
-	[color.line]='34'
-	[color.line.off]='39'
-	[color.title]='1'
-	[color.title.off]='22'
-	[color.value]='34'
-	[color.value.off]='39'
-)
+	exec 10<&0 11>&1 12>&2 # save stdin, stdout, stderr
+}
 
 __NS__set_debugger_trap() {
 	# shellcheck disable=SC2034
@@ -51,30 +54,27 @@ __NS__unset_debugger_trap() {
 }
 
 __NS__set_breakpoint() {
-	local LOC="$1"
-	local TEST="$2"
-	local -i LINE="${LOC##*:}"
-	local SOURCE="${LOC%${LINE}}"; SOURCE="${SOURCE%:}"
-	if [[ -z $SOURCE ]]; then
-		SOURCE="${BASH_SOURCE[1]}"
+	local loc=$1
+	local condition=${2:-':'}
+	local -i line_no=${loc##*:}
+	local source=${loc%"${line_no}"}; source=${source%:}
+	if [[ -z $source ]]; then
+		source=${BASH_SOURCE[1]}
 	fi
-	SOURCE=$(readlink -m "$SOURCE")
-	if [[ -z $TEST ]]; then
-		TEST=':'
-	fi
-	__NS__BREAKPOINTS[$SOURCE:$LINE]="$TEST"
+	source=$(readlink -m "$source")
+	__NS__BREAKPOINTS[$source:$line_no]=$condition
 }
 
 __NS__unset_breakpoint() {
-	local LOC="$1"
-	local TEST="$2"
-	local -i LINE="${LOC##*:}"
-	local SOURCE="${LOC%${LINE}}"; SOURCE="${SOURCE%:}"
-	if [[ -z $SOURCE ]]; then
-		SOURCE="${BASH_SOURCE[1]}"
+	local loc=$1
+	local condition=$2
+	local -i line_no="${loc##*:}"
+	local source="${loc%"${line_no}"}"; source=${source%:}
+	if [[ -z $source ]]; then
+		source=${BASH_SOURCE[1]}
 	fi
-	SOURCE="$(readlink -m "$SOURCE")"
-	unset __NS__BREAKPOINTS["$SOURCE:$LINE"]
+	source=$(readlink -m "$source")
+	unset '__NS__BREAKPOINTS[$source:$line_no]'
 }
 
 __NS__get_breakpoint_list() {
@@ -85,66 +85,67 @@ __NS__get_breakpoint_list() {
 }
 
 __NS__add_data_breakpoint() {
-	local EXPR="$*"
-	__NS__DATA_BREAKPOINTS+=( "$EXPR" )
+	local expr=$*
+	__NS__DATA_BREAKPOINTS+=( "$expr" )
 }
 
 __NS__delete_data_breakpoint() {
-	local INDEX="$1"
-	unset __NS__DATA_BREAKPOINTS["$INDEX"]
+	local -i index=$1
+	unset '__NS__DATA_BREAKPOINTS[index]'
 }
 
 __NS__get_data_breakpoint_list() {
 	local -i i
 	for i in "${!__NS__DATA_BREAKPOINTS[@]}"; do
-		printf '[%d]: %s\n' "$i" "${__NS__DATA_BREAKPOINTS[$i]}"
+		printf '[%d]: %s\n' "$i" "${__NS__DATA_BREAKPOINTS[i]}"
 	done
 }
 
 __NS__add_watch() {
-	local EXPR="$*"
-	__NS__WATCHES+=( "$EXPR" )
+	local expr=$*
+	__NS__WATCHES+=( "$expr" )
 }
 
 __NS__delete_watch() {
-	local INDEX="$1"
-	unset __NS__WATCHES["$INDEX"]
+	local -i index=$1
+	unset "__NS__WATCHES[$index]"
 }
 
 __NS__set_debugger_property() {
-	local PROP="$1"
-	local VAL="$2"
-	if [[ -z $PROP || -z ${__NS__DEBUGGER_PROPERTIES[$PROP]:+test} || -z ${VAL:+test} ]]; then
+	local prop=$1
+	local value=$2
+	if [[ -z $prop || -z ${__NS__DEBUGGER_PROPERTIES[$prop]:+test} || -z ${value:+test} ]]; then
 		return
 	fi
-	__NS__DEBUGGER_PROPERTIES[$PROP]="$VAL"
+	__NS__DEBUGGER_PROPERTIES[$prop]=$value
 }
 
 __NS__get_debugger_properties() {
-	local PROP="$1"
-	if [[ -z $PROP ]]; then
+	local prop=$1
+	if [[ -z $prop ]]; then
 		# shellcheck disable=SC2030
-		for PROP in  "${!__NS__DEBUGGER_PROPERTIES[@]}"; do
-			printf '%20s = "%s"\n' "$PROP" "${__NS__DEBUGGER_PROPERTIES[$PROP]}"
+		for prop in  "${!__NS__DEBUGGER_PROPERTIES[@]}"; do
+			printf '%20s = "%s"\n' "$prop" "${__NS__DEBUGGER_PROPERTIES[$prop]}"
 		done | sort
 		return
 	fi
 	# shellcheck disable=SC2031
-	if [[ -z ${__NS__DEBUGGER_PROPERTIES[$PROP]:+test} ]]; then
+	if [[ -z ${__NS__DEBUGGER_PROPERTIES[$prop]:+test} ]]; then
 		return
 	fi
 	# shellcheck disable=SC2031
-	printf '%20s = "%s"\n' "$PROP" "${__NS__DEBUGGER_PROPERTIES[$PROP]}"
+	printf '%20s = "%s"\n' "$prop" "${__NS__DEBUGGER_PROPERTIES[$prop]}"
 }
 
 __NS__debugger_output_filter() {
-	local PROMPT_COLOR_ON='' PROMPT_COLOR_OFF=''
+	local prompt_color_on='' prompt_color_off=''
 	if (( __NS__DEBUGGER_PROPERTIES[color] == 1 )); then
-		PROMPT_COLOR_ON="$(__NS__get_debugger_color prompt)"
-		PROMPT_COLOR_OFF="$(__NS__get_debugger_color_off prompt)"
+		prompt_color_on=$(__NS__get_debugger_color prompt)
+		prompt_color_off=$(__NS__get_debugger_color_off prompt)
 	fi
-	while IFS='' read -r MSG; do
-		printf '%bDEBUG:%b %s\n' "${PROMPT_COLOR_ON}" "${PROMPT_COLOR_OFF}" "$MSG"
+	local msg
+	while IFS='' read -r msg; do
+		printf '%bDEBUG:%b %s\n' "${prompt_color_on}" "${prompt_color_off}" "$msg"
 	done
 }
 
@@ -166,24 +167,24 @@ __NS__call_stack_level() {
 
 __NS__list_source_code() {
 	local -i i initial=${1:-0}
-	local SOURCE="${BASH_SOURCE[$initial + 1]}"
-	SOURCE="$(readlink -m "$SOURCE")"
-	local -i LINE="${BASH_LINENO[$initial]}"
-	local -i CONTEXT="${__NS__DEBUGGER_PROPERTIES[list.context]}"
-	local OUT
-	local LINE_COLOR_ON='' LINE_COLOR_OFF=''
+	local source=${BASH_SOURCE[$initial + 1]}
+	source=$(readlink -m "$source")
+	local -i line_no="${BASH_LINENO[$initial]}"
+	local -i context="${__NS__DEBUGGER_PROPERTIES[list.context]}"
+	local out
+	local line_color_on='' line_color_off=''
 	if (( __NS__DEBUGGER_PROPERTIES[color] == 1 )); then
-		LINE_COLOR_ON="$(__NS__get_debugger_color line)"
-		LINE_COLOR_OFF="$(__NS__get_debugger_color line.off)"
+		line_color_on=$(__NS__get_debugger_color line)
+		line_color_off=$(__NS__get_debugger_color line.off)
 	fi
 	{
-		for (( i=(LINE-CONTEXT); i <= (LINE+CONTEXT); ++i )); do
-			OUT="$(sed "${i}q;d" "$SOURCE" || echo '...')"
-			OUT="${OUT%$'\n'}"
-			if (( i == LINE )); then
-				printf '%b%6s> %s%b\n' "${LINE_COLOR_ON}" "$((i))" "$OUT" "${LINE_COLOR_OFF}"
+		for (( i=(line_no-context); i <= (line_no+context); ++i )); do
+			out=$(sed "${i}q;d" "$source" || echo '...')
+			out=${out%$'\n'}
+			if (( i == line_no )); then
+				printf '%b%6s> %s%b\n' "${line_color_on}" "$((i))" "$out" "${line_color_off}"
 			else
-				printf '%6s: %s\n' "$((i))" "$OUT"
+				printf '%6s: %s\n' "$((i))" "$out"
 			fi
 		done
 	} 2> /dev/null
@@ -193,28 +194,28 @@ __NS__get_debugger_color() {
 	if (( __NS__DEBUGGER_PROPERTIES[color] != 1 )); then
 		return
 	fi
-	local PROP="$1"
-	if [[ -z ${__NS__DEBUGGER_PROPERTIES[color.${PROP}]} ]]; then
+	local prop=$1
+	if [[ -z ${__NS__DEBUGGER_PROPERTIES[color.${prop}]} ]]; then
 		return
 	fi
-	printf '%b' "\e[${__NS__DEBUGGER_PROPERTIES[color.${PROP}]}m"
+	printf '%b' "\e[${__NS__DEBUGGER_PROPERTIES[color.${prop}]}m"
 }
 
 __NS__get_debugger_color_off() {
 	if (( __NS__DEBUGGER_PROPERTIES[color] != 1 )); then
 		return
 	fi
-	local PROP="$1"
-	if [[ -z ${__NS__DEBUGGER_PROPERTIES[color.${PROP}]} ]]; then
+	local prop="$1"
+	if [[ -z ${__NS__DEBUGGER_PROPERTIES[color.${prop}]} ]]; then
 		return
 	fi
 	local ansi=''
-	if [[ -z ${__NS__DEBUGGER_PROPERTIES[color.${PROP}.off]} ]]; then
+	if [[ -z ${__NS__DEBUGGER_PROPERTIES[color.${prop}.off]} ]]; then
 		ansi+='0;'
 	else
-		ansi+="${__NS__DEBUGGER_PROPERTIES[color.${PROP}.off]};"
+		ansi+="${__NS__DEBUGGER_PROPERTIES[color.${prop}.off]};"
 	fi
-	if [[ $PROP != default && -n ${__NS__DEBUGGER_PROPERTIES[color.default]} ]]; then
+	if [[ $prop != default && -n ${__NS__DEBUGGER_PROPERTIES[color.default]} ]]; then
 		ansi+="${__NS__DEBUGGER_PROPERTIES[color.default]};"
 	fi
 	printf '%b' "\e[${ansi%;}m"
@@ -521,7 +522,7 @@ __NS__debugger() {
 						continue # skip saving history
 						;;
 					*)
-						eval "${__NS____REPL__[@]}" >&11
+						eval "${__NS____REPL__[*]}" >&11
 						;;
 				esac
 
@@ -535,7 +536,5 @@ __NS__debugger() {
 		done # AUTO DISPLAY LOOP
 	} <&- 0<&10 1>&11 2>&12
 }
-
-exec 10<&0 11>&1 12>&2 # save stdin, stdout, stderr
 
 

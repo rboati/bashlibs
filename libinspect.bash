@@ -121,3 +121,12 @@ __NS__var_status() {
 		x_ret='UNDECLARED'
 	fi
 }
+
+__NS__match_declare() {
+	pragma local_prefix x_
+	local x_decl1; x_decl1=$(declare -p "$1")
+	local x_decl2; x_decl2=$(declare -p "$2")
+	[[ ${x_decl1#*=} == "${x_decl2#*=}" ]]
+	return $?
+}
+

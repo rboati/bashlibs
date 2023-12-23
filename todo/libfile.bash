@@ -154,3 +154,4 @@ __NS__posix_dirname() {
 	fi
 	return
 }
+

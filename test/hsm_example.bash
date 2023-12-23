@@ -1,10 +1,11 @@
 #!/bin/bash
 
 # shellcheck disable=SC1091
-source ../libimport.bash
+source ../bashlibs.bash
 bash_import libhsm.bash
-bash_import libdebug.bash
+DEBUG=1 bash_import ../todo/libdebug.bash
 
+initialize_libhsm
 
 declare -gri SIG_A=0
 declare -gri SIG_B=1
@@ -252,9 +253,9 @@ choice1() {
 }
 
 send() {
-	local SIG=$1
+	local -i SIG=$1
 	printf "\n%s:" "${EVENT_NAMES[$SIG]}"
-	hsm_dispatch $SIG
+	dispatch_event $SIG
 }
 
 example_machine() {
@@ -263,7 +264,7 @@ example_machine() {
 
 	local FOO
 
-	hsm_init initial
+	start_initial_state initial
 	send $SIG_A
 	send $SIG_B
 	send $SIG_D
@@ -288,10 +289,11 @@ example_machine() {
 }
 
 
-
 main() {
+	initialize_libdebug
 	set_debugger_property locals.auto 1
 	set_debugger_property watch.auto 1
+	set_debugger_property list.auto 1
 	add_watch '$__EXITCODE__'
 	add_watch '$STATE'
 	add_watch '"$HSM_PATH[@]"'
@@ -299,3 +301,5 @@ main() {
 
 	example_machine
 }
+
+(( ${#BASH_SOURCE[@]} == 1 )) && main

@@ -1,8 +1,9 @@
 #!/bin/bash
 
 # shellcheck disable=SC1091
-source "../libimport.bash"
-bash_import "../libloglevel.bash"
+#source "../libimport.bash"
+#bash_import "../libloglevel.bash"
+source "../bashlibs.bash"
 
 inside_function1 () {
 	local LOGDOMAIN="function1"

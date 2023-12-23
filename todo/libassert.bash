@@ -2,12 +2,12 @@
 __NS__generate_assert_functions() {
 	if [[ -z $ASSERT || $ASSERT == 1 ]]; then
 		__NS__assert() {
+			local -i exit_code=$?
 			local fmt=${1:-}
 			if [[ $fmt != *'\n' ]]; then
 				fmt+='\n'
 			fi
 			shift
-			local -i exit_code=$?
 			local file func
 			local -i lineno
 			local line

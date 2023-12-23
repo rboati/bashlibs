@@ -30,7 +30,7 @@ __NS__split_string() {
 }
 
 
-function __NS__join_args {
+__NS__join_args() {
 	local sep=${1-} first=${2-}
 	if shift 2; then
 		printf -v __NS__join_args '%s' "$first" "${@/#/$sep}"
@@ -50,6 +50,17 @@ __NS__prefix_filter() {
 	EOF
 	eval "$template"
 }
+
+
+__NS__chr() {
+	printf -v "${retvar:?}" '%03o' "$1"
+	printf -v "${retvar}" '%b' \\"${!retvar}"
+}
+
+__NS__ord() {
+	printf -v "${retvar:?}" '%d' "'$1"
+}
+
 
 
 

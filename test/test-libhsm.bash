@@ -1,10 +1,9 @@
 #!/bin/bash
 
 # shellcheck disable=SC1091
-source ../libimport.bash
+source ../bashlibs.bash
 bash_import ../libtest.bash
-#bash_import ../libhsm.bash
-bash_import ./hsm_example.bash
+source "${BASH_SOURCE%/*}/hsm_example.bash"
 
 
 # shellcheck disable=SC2155
@@ -35,31 +34,31 @@ declare -gr EXPECTED=$(cat <<- EOF
 )
 
 testsuite_1_test_run() {
-	local OUT
-	OUT=$(example_machine)
+	local OUT; OUT=$(example_machine)
 	test_assert
 	[[ -n $OUT ]] || test_assert
 	[[ "$OUT" == "$EXPECTED" ]] || test_assert
-	test_assert '[[ $OUT == "$EXPECTED" ]]'
 }
 
-example_machine_2() {
+test_example_machine() {
 	# shellcheck disable=SC2034
 	local STATE      # hsm state
 	# shellcheck disable=SC2034
 	local -a HSM_PATH=() # hsm path
 	# shellcheck disable=SC2034
 	local FOO
-	hsm_init initial
+	start_initial_state initial
 
-	while read -r -a EVENT; do
-		send "${EVENT[@]}"
+	local IFS=$' \t\n'
+	local -a event
+	while read -r -a event; do
+		send "${event[@]}"
 	done
 }
 
 testsuite_1_test_run2() {
 	# shellcheck disable=SC2155
-	local OUT=$(cat <<- EOF > >(example_machine_2)
+	local OUT=$(cat <<- EOF > >(test_example_machine)
 		$SIG_A
 		$SIG_B
 		$SIG_D
@@ -85,18 +84,17 @@ testsuite_1_test_run2() {
 	)
 
 	[[ $OUT == "$EXPECTED" ]] || test_assert
-	test_assert '[[ $OUT == "$EXPECTED" ]]'
 }
 
 
 testsuite_2_setup() {
 	exec 10<&0 11>&1 12>&2 # copy stdin, stdout, stderr
-	exec 11> >(example_machine_2 > example_machine_2.log)
+	exec 11> >(test_example_machine > test_example_machine.log)
 }
 
 testsuite_2_teardown() {
 	exec 10<&- 11>&- 12>&- # close duplicated fds
-	rm "example_machine_2.log"
+	rm -f "test_example_machine.log"
 }
 
 testsuite_2_test_run() {
@@ -127,10 +125,9 @@ testsuite_2_test_run() {
 	sleep 1
 
 	local OUT
-	OUT=$(sync; cat example_machine_2.log)
+	OUT=$(sync; cat test_example_machine.log)
 
 	[[ $OUT == "$EXPECTED" ]] || test_assert
-	test_assert '[[ $OUT == "$EXPECTED" ]]'
 }
 
 

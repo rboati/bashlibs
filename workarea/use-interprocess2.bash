@@ -3,7 +3,7 @@
 # shellcheck disable=SC1091
 source ../bashlibs.bash
 bash_import ../libipc.bash mkufifo
-bash_import ../libdebug.bash
+#bash_import ../libdebug.bash
 
 
 storage() {
