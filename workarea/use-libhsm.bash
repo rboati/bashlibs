@@ -4,7 +4,7 @@
 source ../bashlibs.bash
 #set_loglevel trace
 
-DEBUG=1 bash_import ../libhsm.bash
+bash_import ../libhsm.bash
 
 
 initialize_libhsm

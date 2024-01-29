@@ -217,7 +217,7 @@ __libimport_generate_functions_maps() {
 
 bash_import() {
 	local __libimport_module_path=${1%=*}
-	local __libimport_ns=${1#*=}
+	local __libimport_ns=''
 	shift
 	while ((${#@})); do
 		case $1 in
