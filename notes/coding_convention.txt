@@ -29,7 +29,7 @@
 
 
 == Strings
-- Prefer single quoting '...' whenever possible.
+- Prefer single quoting '...' if expansions are not needed.
 	- RATIO: Explicit it's better.
 
 

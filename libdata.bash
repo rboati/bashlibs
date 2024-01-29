@@ -6,6 +6,7 @@ bash_import ./libipc.bash -p __NS__ipc_ mkufifo
 __NS__open() {
 	pragma require_functions __NS__mkufifo
 	pragma local_prefix x_
+	pragma logdomain
 	 # shellcheck disable=SC2178
 	local -n x_db=$1
 	if [[ -n  ${x_db[in]} && -n ${x_db[out]} ]]; then
@@ -31,6 +32,7 @@ __NS__open() {
 # $1: Var name of db connection descriptor
 __NS__close() {
 	pragma local_prefix x_
+	pragma logdomain
 	 # shellcheck disable=SC2178
 	local -n x_db=$1
 	 # shellcheck disable=SC2154
@@ -38,7 +40,7 @@ __NS__close() {
 		__NS__flush "${!x_db}"
 	fi
 	if [[ ${x_db[in]} ]]; then
-		printtrace '__NS__close:closing db'
+		printtrace 'closing db'
 		# shellcheck disable=SC2086
 		printf '\n%s\n' '.quit' >&${x_db[in]}
 		#eval "exec ${x_db[in]}>&- ${x_db[out]}>&-"
@@ -50,11 +52,14 @@ __NS__close() {
 }
 
 
-# $1 {string} Var name of db connection descriptor
-# $2 {string} Query SQL
-# $3 {0|1} default=0 Keep iterator
+# $1: {string} Var name of db connection descriptor
+# $2: {string} Query SQL
+# $3: {0|1} Keep iterator (default=0)
 __NS__query() {
 	pragma local_prefix x_
+	pragma logdomain
+	#### shellcheck disable=SC2034,SC2128
+	###local LOGDOMAIN="__NS__libdata|$FUNCNAME"
 	 # shellcheck disable=SC2178
 	local -n x_db=$1
 	if [[ -z  ${x_db[in]} || -z ${x_db[out]} ]]; then
@@ -70,7 +75,7 @@ __NS__query() {
 	local -i x_keep_iterator=${3:-0}
 	local x_field _ x_value x_line
 	# shellcheck disable=SC2086
-	printtrace '__NS__query:sql:%s' "$x_sql"
+	printtrace 'sql:%s' "${x_sql}"
 	# shellcheck disable=SC2086
 	{
 		printf '%s\n' "${x_sql};"
@@ -83,12 +88,13 @@ __NS__query() {
 		__NS__flush "${!x_db}"
 		return 0
 	fi
-	printtrace '__NS__query:keeping iterator'
+	printtrace 'keeping iterator'
 	return 1
 }
 
 __NS__next() {
 	pragma local_prefix x_
+	pragma logdomain
 	 # shellcheck disable=SC2178
 	local -n x_db=$1
 	if [[ -z  ${x_db[in]} || -z ${x_db[out]} ]]; then
@@ -126,6 +132,7 @@ __NS__next() {
 
  __NS__flush() {
 	pragma local_prefix x_
+	pragma logdomain
 	 # shellcheck disable=SC2178
 	local -n x_db=$1
 	if (( x_db[iter] != 1 )); then
@@ -133,7 +140,7 @@ __NS__next() {
 	fi
 	local IFS=$' \t\n'
 	local x_line
-	printtrace '__NS__flush:flushing query'
+	printtrace 'flushing query'
 	# shellcheck disable=SC2086
 	while read -r x_line; do
 		if [[ ${x_line} == EOF ]]; then
@@ -148,6 +155,7 @@ __NS__next() {
 # $2: Query SQL
 __NS__get_record() {
 	pragma local_prefix x_
+	pragma logdomain
 	 # shellcheck disable=SC2178
 	local -n x_db=$1
 	local x_sql=$2

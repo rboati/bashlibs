@@ -14,9 +14,9 @@ trap 'printf "Closing DB...\n"; db_close DB' EXIT
 
 db_query DB 'CREATE TABLE n (id INTEGER PRIMARY KEY, name TEXT, text TEXT);'
 db_query DB "INSERT INTO \"main\".\"n\" (\"id\", \"name\", \"text\") VALUES (1, 'Alice'  , $(db_sql_quote "\$Hello  \"new\"   "$'\n'"   ''world''"));"
-db_query DB "INSERT INTO \"main\".\"n\" (\"id\", \"name\", \"text\") VALUES (2, 'Bob'    , $(db_sql_quote 'Hello world'));"
-db_query DB "INSERT INTO \"main\".\"n\" (\"id\", \"name\", \"text\") VALUES (3, 'Charlie', $(db_sql_quote 'Hello world'));"
-db_query DB "INSERT INTO \"main\".\"n\" (\"id\", \"name\", \"text\") VALUES (4, 'Dan'    , $(db_sql_quote 'Hello world'));"
+db_query DB "INSERT INTO \"main\".\"n\" (\"id\", \"name\", \"text\") VALUES (2, 'Bob'    , 'Hello world');"
+db_query DB "INSERT INTO \"main\".\"n\" (\"id\", \"name\", \"text\") VALUES (3, 'Charlie', 'Hello world');"
+db_query DB "INSERT INTO \"main\".\"n\" (\"id\", \"name\", \"text\") VALUES (4, 'Dan'    , 'Hello world');"
 
 declare -A record
 retvar=record db_get_record DB "select * from n limit 1;"

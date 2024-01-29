@@ -5,6 +5,14 @@ if [[ -z ${BASH_LIBRARY_PATH-} ]]; then
 	declare -g BASH_LIBRARY_PATH="$HOME/.local/lib/bash:/usr/local/lib/bash:/usr/lib/bash"
 fi
 
+# For original concept see https://www.fvue.nl/wiki/Bash:_Passing_variables_by_reference
+# upvar: {varname} {value}
+upvar() {
+	if unset -v "${1:?}"; then
+		eval "$1=${2@Q}"
+	fi
+}
+
 uuid_compress() {
 	local uuid=$1
 	local val=${uuid//-/}
@@ -37,6 +45,8 @@ uuid_compress() {
 	do :; done
 	local "${retvar:?}" && upvar "$retvar" "$compressed_uuid"
 }
+
+
 
 __libimport_filter_function_code() {
 	local ns=$1
@@ -105,6 +115,14 @@ __libimport_filter_function_code() {
 						continue
 						;;
 					# TODO: filter local pragmas
+					logdomain)
+						local module=${__libimport_module_path##*/}
+						module=${module%.*}
+						local funcname=${__libimport_item/#$global_prefix/$ns}
+						body+="local LOGDOMAIN=\"${funcname}\""$'\n'
+						continue
+						;;
+
 				esac
 				continue
 			fi
@@ -685,12 +703,6 @@ upvars() {
 	done
 }
 
-# upvar: {varname} {value}
-upvar() {
-	if unset -v "${1:?}"; then
-		eval "$1=${2@Q}"
-	fi
-}
 
 # upvar_array: {varname} {values...}
 # $1: varname
