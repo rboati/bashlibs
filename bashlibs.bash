@@ -5,23 +5,6 @@ if [[ -z ${BASH_LIBRARY_PATH-} ]]; then
 	declare -g BASH_LIBRARY_PATH="$HOME/.local/lib/bash:/usr/local/lib/bash:/usr/lib/bash"
 fi
 
-function comment() {
-	local -i exit_code=$?
-	:
-	return $exit_code
-}
-
-#region comment
-comment <<-'EOC'
-	Comment example
-EOC
-
-comment '
-	Comment example
-'
-#endregion
-
-
 uuid_compress() {
 	local uuid=$1
 	local val=${uuid//-/}
@@ -54,7 +37,6 @@ uuid_compress() {
 	do :; done
 	local "${retvar:?}" && upvar "$retvar" "$compressed_uuid"
 }
-
 
 __libimport_filter_function_code() {
 	local ns=$1
@@ -456,6 +438,218 @@ sink() {
 	printf -- '%s' "$buf"
 }
 
+die() {
+	local -i exit_code=$?
+	local fmt=${1:-}
+	if [[ $fmt != *'\n' ]]; then
+		fmt+='\n'
+	fi
+	shift
+	printfatal 'Exit (%i) at "%s:%i" in %s(): '"${fmt}" $exit_code "$(readlink -e "${BASH_SOURCE[1]}")" "${BASH_LINENO[0]}" "${FUNCNAME[1]}"  "$@"
+	if ((exit_code == 0)); then
+		exit_code=1
+	fi
+	exit $exit_code
+}
+
+function comment() {
+	local -i exit_code=$?
+	:
+	return $exit_code
+}
+
+#region comment
+comment <<-'EOC'
+	Comment example
+EOC
+
+comment '
+	Comment example
+'
+#endregion
+
+# shopt -s expand_aliases
+# alias begincomment="'comment' <<- 'endcomment'"
+
+# begincomment
+# Comment example
+# xaasa
+# endcomment
+
+assert() { return $?; }
+
+#region Loglevels
+declare -ga LOGLEVELS=(OFF FATAL  ERROR WARN INFO DEBUG TRACE)
+declare -ga LOGCOLORS=('0' '1;31' '31'  '33' '34' '37'  '2;40')
+if [[ -z $LOGDOMAIN ]]; then
+	declare -g LOGDOMAIN="${BASH_SOURCE[1]##*/}"
+fi
+
+# Ovewritten by set_loglevel()
+logfatal() { :; }
+logerror() { :; }
+logwarn() { :; }
+loginfo() { :; }
+logdebug() { :; }
+logtrace() { :; }
+echofatal() { :; }
+echoerror() { :; }
+echowarn() { :; }
+echoinfo() { :; }
+echodebug() { :; }
+echotrace() { :; }
+printfatal() { :; }
+printerror() { :; }
+printwarn() { :; }
+printinfo() { :; }
+printdebug() { :; }
+printtrace() { :; }
+
+get_loglevel() { :; }
+
+logdomain_filter() {
+	local prefix=$1
+	# shellcheck disable=SC2034
+	local IFS='' LC_ALL=C msg
+	while read -r msg; do
+		printf -- "${prefix}"'%s\n' "$msg"
+	done
+}
+
+loglevel_filter() {
+	local -r prefix=$1
+	# shellcheck disable=SC2034
+	local IFS='' LC_ALL=C msg
+	while read -r msg; do
+		printf -- "${prefix}"'%s\n' "$msg"
+	done
+}
+
+logproto_filter() {
+	local -r prefix=$1
+	# shellcheck disable=SC2034
+	local IFS='' LC_ALL=C msg
+	while read -r msg; do
+		case $msg in
+
+		esac
+		printf -- "${prefix}"'%s\n' "$msg"
+	done
+}
+
+set_loglevel() {
+	local loglevel_arg=$1
+	local -i i err=0
+	local -ir default_loglevel=4
+	local -i loglevel=$default_loglevel
+
+	if [[ $loglevel_arg =~ ^[0-9]+$ ]]; then
+		if ((loglevel_arg < 0)); then
+			loglevel=0
+			err=1
+		elif ((loglevel_arg >= ${#LOGLEVELS[@]})); then
+			loglevel=$((${#LOGLEVELS[@]} - 1))
+			err=2
+		else
+			loglevel=$loglevel_arg
+		fi
+	else
+		while :; do
+			for ((i = 0; i < ${#LOGLEVELS[@]}; ++i)); do
+				if [[ ${loglevel_arg,,} == "${LOGLEVELS[$i],,}" ]]; then
+					loglevel=$i
+					break 2
+				fi
+			done
+			loglevel=$default_loglevel
+			err=3
+			break
+		done
+	fi
+
+	#generate_log_functions "$loglevel"
+
+	local -a suffixes=("${LOGLEVELS[@],,}")
+	unset 'suffixes[0]'
+	local -i level
+	local suffix
+	local level_name
+	local color reset
+	local template
+
+	if [[ -z $LOGCOLOR ]]; then
+		local -i LOGCOLOR=1
+	fi
+
+	if [[ -z $LOGSINK ]]; then
+		local LOGSINK='1>&2'
+	fi
+
+	for level in "${!suffixes[@]}"; do
+		suffix=${suffixes[$level]}
+		level_name="${LOGLEVELS[$level]}"
+
+		if ((LOGCOLOR == 1)); then
+			color="${LOGCOLORS[$level]}"
+			[[ -z $color ]] && color='0'
+			color="\e[${color}m"
+			reset="\e[0m"
+		else
+			color=''
+			reset=''
+		fi
+		if ((loglevel >= level)); then
+			template=$(
+				cat <<-EOF
+					log${suffix}()   {
+						local -ir x=\$?
+						logdomain_filter "${color}""\${LOGDOMAIN}""${reset}:" | loglevel_filter "${color}${level_name}${reset}:" $LOGSINK
+						return \$x
+					}
+					echo${suffix}()  {
+						local -ir x=\$?
+						printf '%b:%s\n' "${color}""\${LOGDOMAIN}""${reset}" "\$*" | loglevel_filter "${color}${level_name}${reset}:" $LOGSINK
+						return \$x
+					}
+					print${suffix}() {
+						local -ir x=\$?; local fmt="\$1"; shift
+						printf "${color}""\${LOGDOMAIN}""${reset}:\$fmt\n" "\$@" | loglevel_filter "${color}${level_name}${reset}:" $LOGSINK
+						return \$x
+					}
+				EOF
+			)
+			eval "$template"
+		else
+			template=$(
+				cat <<-EOF
+					log${suffix}()   { declare -ir x=\$?; while IFS= read -r -N512 _; do :; done; return \$x; }
+					echo${suffix}()  { return \$?; }
+					print${suffix}() { return \$?; }
+				EOF
+			)
+		fi
+		eval "$template"
+		# shellcheck disable=SC2034
+		template=$(
+			cat <<-EOF
+				get_loglevel() {
+					prinf -v "\${retvar}" -- '%i' $loglevel
+				}
+			EOF
+		)
+		eval "$template"
+	done
+	return $err
+}
+
+set_loglevel 4
+
+#endregion Loglevels
+
+
+
+# DEPRECATED
+
 upvars() {
 	while (( $# )); do
 		case $1 in
@@ -544,196 +738,3 @@ upvar_hash2() {
 		: # set exit code to 0
 	fi
 }
-
-die() {
-	local -i exit_code=$?
-	local fmt=${1:-}
-	if [[ $fmt != *'\n' ]]; then
-		fmt+='\n'
-	fi
-	shift
-	printfatal 'Exit (%i) at "%s:%i" in %s(): '"${fmt}" $exit_code "$(readlink -e "${BASH_SOURCE[1]}")" "${BASH_LINENO[0]}" "${FUNCNAME[1]}"  "$@"
-	if ((exit_code == 0)); then
-		exit_code=1
-	fi
-	exit $exit_code
-}
-
-
-# shopt -s expand_aliases
-# alias begincomment="'comment' <<- 'endcomment'"
-
-# begincomment
-# Comment example
-# xaasa
-# endcomment
-
-assert() { return $?; }
-
-#region Loglevels
-declare -ga LOGLEVELS=(OFF FATAL ERROR WARN INFO DEBUG TRACE)
-declare -ga LOGCOLORS=(0 '1;31' '31' '33' '34' '37' '1')
-if [[ -z $LOGDOMAIN ]]; then
-	declare -g LOGDOMAIN="${BASH_SOURCE[1]##*/}"
-fi
-
-# Ovewritten by set_loglevel()
-logfatal() { :; }
-logerror() { :; }
-logwarn() { :; }
-loginfo() { :; }
-logdebug() { :; }
-logtrace() { :; }
-echofatal() { :; }
-echoerror() { :; }
-echowarn() { :; }
-echoinfo() { :; }
-echodebug() { :; }
-echotrace() { :; }
-printfatal() { :; }
-printerror() { :; }
-printwarn() { :; }
-printinfo() { :; }
-printdebug() { :; }
-printtrace() { :; }
-
-get_loglevel() { :; }
-
-logdomain_filter() {
-	local prefix=$1
-	# shellcheck disable=SC2034
-	local IFS='' LC_ALL=C msg
-	while read -r msg; do
-		printf -- "${prefix}"'%s\n' "$msg"
-	done
-}
-
-loglevel_filter() {
-	local -r prefix=$1
-	# shellcheck disable=SC2034
-	local IFS='' LC_ALL=C msg
-	while read -r msg; do
-		printf -- "${prefix}"'%s\n' "$msg"
-	done
-}
-
-logproto_filter() {
-	local -r prefix=$1
-	# shellcheck disable=SC2034
-	local IFS='' LC_ALL=C msg
-	while read -r msg; do
-		case $msg in
-
-		esac
-		printf -- "${prefix}"'%s\n' "$msg"
-	done
-}
-
-generate_log_functions() {
-	local -i loglevel=${1:?}
-	local -a suffixes=("${LOGLEVELS[@],,}")
-	unset 'suffixes[0]'
-	local -i level
-	local suffix
-	local level_name
-	local color reset
-	local template
-
-	if [[ -z $LOGCOLOR ]]; then
-		local -i LOGCOLOR=1
-	fi
-
-	if [[ -z $LOGSINK ]]; then
-		local LOGSINK='1>&2'
-	fi
-
-	for level in "${!suffixes[@]}"; do
-		suffix=${suffixes[$level]}
-		level_name="${LOGLEVELS[$level]}"
-
-		if ((LOGCOLOR == 1)); then
-			color="${LOGCOLORS[$level]}"
-			[[ -z $color ]] && color='0'
-			color="\e[${color}m"
-			reset="\e[0m"
-		else
-			color=''
-			reset=''
-		fi
-
-		if ((loglevel >= level)); then
-			template=$(
-				cat <<-EOF
-					log${suffix}()   {
-						local -ir x=\$?
-						logdomain_filter "${color}"\${LOGDOMAIN@Q}"${reset}:" | loglevel_filter "${color}${level_name}${reset}:" $LOGSINK
-						return \$x
-					}
-					echo${suffix}()  {
-						local -ir x=\$?
-						printf '%b:%s\n' "${color}"\${LOGDOMAIN@Q}"${reset}" "\$*" | loglevel_filter "${color}${level_name}${reset}:" $LOGSINK
-						return \$x
-					}
-					print${suffix}() {
-						local -ir x=\$?; local fmt="\$1"; shift
-						printf "${color}"\${LOGDOMAIN@Q}"${reset}:\$fmt\n" "\$@" | loglevel_filter "${color}${level_name}${reset}:" $LOGSINK
-						return \$x
-					}
-				EOF
-			)
-			eval "$template"
-		else
-			template=$(
-				cat <<-EOF
-					log${suffix}()   { declare -ir x=\$?; while IFS= read -r -N512 _; do :; done; return \$x; }
-					echo${suffix}()  { return \$?; }
-					print${suffix}() { return \$?; }
-				EOF
-			)
-		fi
-		eval "$template"
-		# shellcheck disable=SC2034
-		template=$(
-			cat <<-EOF
-				get_loglevel() {
-					prinf -v "\${retvar}" -- '%i' $loglevel
-				}
-			EOF
-		)
-		eval "$template"
-	done
-}
-
-set_loglevel() {
-	declare loglevel="$1"
-	declare -i i err=0
-	declare -ir default_loglevel=4
-
-	if [[ $loglevel =~ ^[0-9]+$ ]]; then
-		if ((loglevel < 0)); then
-			loglevel=0
-			err=1
-		elif ((loglevel >= ${#LOGLEVELS[@]})); then
-			loglevel=$((${#LOGLEVELS[@]} - 1))
-			err=2
-		fi
-	else
-		while :; do
-			for ((i = 0; i < ${#LOGLEVELS[@]}; ++i)); do
-				if [[ ${loglevel,,} == "${LOGLEVELS[$i],,}" ]]; then
-					loglevel=$i
-					break 2
-				fi
-			done
-			loglevel=$default_loglevel
-			err=3
-			break
-		done
-	fi
-	generate_log_functions "$loglevel"
-	return $err
-}
-
-set_loglevel 4
-
-#endregion Loglevels

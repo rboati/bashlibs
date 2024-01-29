@@ -24,6 +24,7 @@ __NS__open() {
 	if [[ -z ${x_db[vfs]} ]]; then
 		x_db[vfs]=memdb
 	fi
+	#shellcheck disable=SC2086
 	( exec sqlite3 "${x_db[file]}" -batch -line -vfs "${x_db[vfs]}" <&${x_db[in]}  >&${x_db[out]} ) &
 }
 
@@ -36,16 +37,22 @@ __NS__close() {
 	if (( x_db[iter] == 1 )); then
 		__NS__flush "${!x_db}"
 	fi
-	# shellcheck disable=SC2086
-	printf '\n%s\n' '.quit' >&${x_db[in]}
-	#eval "exec ${x_db[in]}>&- ${x_db[out]}>&-"
-	#: ${x_db[in]}>&- ${x_db[out]}<&-
-	unset -v 'x_db[in]' 'x_db[out]'
+	if [[ ${x_db[in]} ]]; then
+		printtrace '__NS__close:closing db'
+		# shellcheck disable=SC2086
+		printf '\n%s\n' '.quit' >&${x_db[in]}
+		#eval "exec ${x_db[in]}>&- ${x_db[out]}>&-"
+		#: ${x_db[in]}>&- ${x_db[out]}<&-
+		unset -v 'x_db[in]' 'x_db[out]'
+	else
+		printdebug 'Database was not opened'
+	fi
 }
 
 
-# $1: Var name of db connection descriptor
-# $2: Query SQL
+# $1 {string} Var name of db connection descriptor
+# $2 {string} Query SQL
+# $3 {0|1} default=0 Keep iterator
 __NS__query() {
 	pragma local_prefix x_
 	 # shellcheck disable=SC2178
@@ -58,10 +65,12 @@ __NS__query() {
 	if (( x_db[iter] == 1 )); then
 		__NS__flush "${!x_db}"
 	fi
-	local x_sql=$2
-	local -i x_iterate=$3
-	local x_field _ x_value x_line
 	local x_nl=$'\n'
+	local x_sql=${2//$x_nl/\\n}
+	local -i x_keep_iterator=${3:-0}
+	local x_field _ x_value x_line
+	# shellcheck disable=SC2086
+	printtrace '__NS__query:sql:%s' "$x_sql"
 	# shellcheck disable=SC2086
 	{
 		printf '%s\n' "${x_sql};"
@@ -70,13 +79,13 @@ __NS__query() {
 		printf '%s\n' '.mode line'
 	} >&${x_db[in]}
 	x_db[iter]=1
-	if (( x_iterate == 0 )); then
+	if (( x_keep_iterator == 0 )); then
 		__NS__flush "${!x_db}"
 		return 0
 	fi
+	printtrace '__NS__query:keeping iterator'
 	return 1
 }
-
 
 __NS__next() {
 	pragma local_prefix x_
@@ -93,6 +102,7 @@ __NS__next() {
 	x_record=()
 	local x_field x_value x_line
 	local IFS=$' '
+	local x_nl=$'\n'
 	# shellcheck disable=SC2086
 	while read -r x_field _ x_value; do
 		if [[ ${x_field}${x_value} == EOF ]]; then
@@ -103,8 +113,8 @@ __NS__next() {
 			continue
 		fi
 		while :; do # record found
-	 		# shellcheck disable=SC2034
-			x_record[$x_field]=${x_value}
+			# shellcheck disable=SC2034,SC2004
+			x_record[$x_field]=${x_value//\\n/$x_nl}
 			read -r x_field _ x_value
 			if [[ -z ${x_field} ]]; then
 				return 0
@@ -123,6 +133,7 @@ __NS__next() {
 	fi
 	local IFS=$' \t\n'
 	local x_line
+	printtrace '__NS__flush:flushing query'
 	# shellcheck disable=SC2086
 	while read -r x_line; do
 		if [[ ${x_line} == EOF ]]; then
@@ -135,7 +146,6 @@ __NS__next() {
 
 # $1: Var name of db connection descriptor
 # $2: Query SQL
-# $3: Output vars prefix (default: record_)
 __NS__get_record() {
 	pragma local_prefix x_
 	 # shellcheck disable=SC2178
@@ -153,17 +163,16 @@ __NS__get_record() {
 
 
 __NS__sql_quote() {
-	local value="$1"
-	local nl="$'\n'"
-	value="${value//\'/\'\'}"
-	value="${value//$nl/\\n}"
-	printf '%s' "'${value}'"
+	local value=$1
+	value=${value//\'/\'\'}
+	printf "'%s'" "${value}"
 }
 
+
+# ???
 __NS__escape_nl() {
 	local fieldname=$1
 	printf "replace(replace(%s,'\\\\','\\\\\\\\'),'\n','\\\\n')" "$fieldname"
 }
-
 
 
