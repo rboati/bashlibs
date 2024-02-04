@@ -1,9 +1,19 @@
 #!/bin/bash
 
+[[ ! -v __DIR__ ]]  && {
+	declare __FILE__ __DIR__
+	__FILE__=$(realpath "${BASH_SOURCE[0]}")
+	__DIR__=${__FILE__%/*}
+}
+
+
 # shellcheck disable=SC1091
-source ../bashlibs.bash
-bash_import ../libtest.bash
-source "${BASH_SOURCE%/*}/hsm_example.bash"
+source "$__DIR__/../bashlibs.bash"
+
+bash_import "$__DIR__/../libtest.bash"
+
+# shellcheck disable=SC1091
+source "$__DIR__/hsm_example.bash"
 
 
 # shellcheck disable=SC2155
@@ -34,17 +44,17 @@ declare -gr EXPECTED=$(cat <<- EOF
 )
 
 testsuite_1_test_run() {
-	local OUT; OUT=$(example_machine)
+	local out; out=$(example_machine)
 	test_assert
-	[[ -n $OUT ]] || test_assert
-	[[ "$OUT" == "$EXPECTED" ]] || test_assert
+	[[ -n $out ]] || test_assert
+	[[ $out == "$EXPECTED" ]] || test_assert
 }
 
 test_example_machine() {
 	# shellcheck disable=SC2034
-	local STATE      # hsm state
+	local STATE
 	# shellcheck disable=SC2034
-	local -a HSM_PATH=() # hsm path
+	local -a HSM_PATH=()
 	# shellcheck disable=SC2034
 	local FOO
 	start_initial_state initial
@@ -52,13 +62,13 @@ test_example_machine() {
 	local IFS=$' \t\n'
 	local -a event
 	while read -r -a event; do
-		send "${event[@]}"
+		dispatch "${event[@]}"
 	done
 }
 
 testsuite_1_test_run2() {
 	# shellcheck disable=SC2155
-	local OUT=$(cat <<- EOF > >(test_example_machine)
+	local out=$(cat <<- EOF > >(test_example_machine)
 		$SIG_A
 		$SIG_B
 		$SIG_D
@@ -83,7 +93,7 @@ testsuite_1_test_run2() {
 		EOF
 	)
 
-	[[ $OUT == "$EXPECTED" ]] || test_assert
+	[[ $out == "$EXPECTED" ]] || test_assert
 }
 
 
@@ -124,10 +134,10 @@ testsuite_2_test_run() {
 
 	sleep 1
 
-	local OUT
-	OUT=$(sync; cat test_example_machine.log)
+	local out
+	out=$(sync; cat test_example_machine.log)
 
-	[[ $OUT == "$EXPECTED" ]] || test_assert
+	[[ $out == "$EXPECTED" ]] || test_assert
 }
 
 

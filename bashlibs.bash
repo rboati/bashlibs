@@ -1,5 +1,9 @@
 # external commands useed: readlink
 
+if declare -F -- bash_import &>/dev/null; then
+	return 0
+fi
+
 #region Bashlibs import
 if [[ -z ${BASH_LIBRARY_PATH-} ]]; then
 	declare -g BASH_LIBRARY_PATH="$HOME/.local/lib/bash:/usr/local/lib/bash:/usr/lib/bash"

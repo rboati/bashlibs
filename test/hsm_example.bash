@@ -1,9 +1,21 @@
 #!/bin/bash
 
+[[ ! -v __DIR__ ]]  && {
+	declare __FILE__ __DIR__
+	__FILE__=$(realpath "${BASH_SOURCE[0]}")
+	__DIR__=${__FILE__%/*}
+}
+
+
+
 # shellcheck disable=SC1091
-source ../bashlibs.bash
-bash_import libhsm.bash
-DEBUG=1 bash_import ../todo/libdebug.bash
+source "$__DIR__/../bashlibs.bash"
+bash_import "$__DIR__/../libhsm.bash"
+
+(( ${#BASH_SOURCE[@]} == 1 )) && {
+	bash_import "$__DIR__/../todo/libdebug.bash"
+}
+
 
 initialize_libhsm
 
@@ -252,7 +264,7 @@ choice1() {
 	return $RET_HANDLED
 }
 
-send() {
+dispatch() {
 	local -i SIG=$1
 	printf "\n%s:" "${EVENT_NAMES[$SIG]}"
 	dispatch_event $SIG
@@ -265,27 +277,27 @@ example_machine() {
 	local FOO
 
 	start_initial_state initial
-	send $SIG_A
-	send $SIG_B
-	send $SIG_D
-	send $SIG_E
-	send $SIG_I
-	send $SIG_F
-	send $SIG_I
-	send $SIG_I
-	send $SIG_F
-	send $SIG_A
-	send $SIG_B
-	send $SIG_D
-	send $SIG_D
-	send $SIG_E
-	send $SIG_G
-	send $SIG_H
-	send $SIG_H
-	send $SIG_C
-	send $SIG_G
-	send $SIG_C
-	send $SIG_C
+	dispatch $SIG_A
+	dispatch $SIG_B
+	dispatch $SIG_D
+	dispatch $SIG_E
+	dispatch $SIG_I
+	dispatch $SIG_F
+	dispatch $SIG_I
+	dispatch $SIG_I
+	dispatch $SIG_F
+	dispatch $SIG_A
+	dispatch $SIG_B
+	dispatch $SIG_D
+	dispatch $SIG_D
+	dispatch $SIG_E
+	dispatch $SIG_G
+	dispatch $SIG_H
+	dispatch $SIG_H
+	dispatch $SIG_C
+	dispatch $SIG_G
+	dispatch $SIG_C
+	dispatch $SIG_C
 }
 
 
