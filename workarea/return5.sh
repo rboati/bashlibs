@@ -1,69 +1,213 @@
 #!/bin/bash
 
-uuid_compress() {
-	local uuid=$1
-	local val=${uuid//-/}
-	local output_alphabet='0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ' #62
-	local -i output_base=${#output_alphabet}
-	compressed_uuid=$(base_convert "$val" 16 $output_base)
-	printf '%s' "$compressed_uuid"
+chr () {
+	printf -v "$2" '%x' "$1"
+	# shellcheck disable=SC2059
+	printf -v "$2" '\U'"${!2}"
 }
 
-uuid_expand() {
-	local compressed_uuid=$1
-	local input_alphabet='0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ' #62
-	local -i input_base=${#input_alphabet}
-	local expanded_uuid
-	expanded_uuid=$(base_convert "$compressed_uuid" $input_base 16)
-	printf -v expanded_uuid '%32s' "$expanded_uuid"
-	expanded_uuid=${expanded_uuid// /0}
-	printf '%8s-%4s-%4s-%4s-%12s' "${expanded_uuid:0:8}" "${expanded_uuid:8:4}" "${expanded_uuid:12:4}" "${expanded_uuid:16:4}" "${expanded_uuid:20:12}"
+ord() {
+	LC_CTYPE=C.UTF-8 printf -v "$2" '%d' "'$1"
 }
 
-base_convert() {
-	local val=$1
-	local -i input_base=${2:-10}
-	local -i output_base=${3:-16}
-	local input_alphabet=${4:-'0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ'}
-	local output_alphabet=${5:-'0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ'}
-	local -A input_alphabet_map
-	local -i i
-	for (( i = 0; i < input_base; ++i )); do
-		input_alphabet_map[${input_alphabet:i:1}]=$i
+join() {
+	: "${1?Missing separator}" "${2?Missing input array var}" "${3?Missing output var}"
+	local IFS=$1
+	eval "$3=\${$2[*]}"
+}
+
+# uuid_compress() {
+# 	local uuid=$1
+# 	local val=${uuid//-/}
+# 	local output_alphabet='0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ' #62
+# 	local -i output_base=${#output_alphabet}
+# 	compressed_uuid=$(base_convert "$val" 16 $output_base)
+# 	printf '%s' "$compressed_uuid"
+# }
+
+# uuid_expand() {
+# 	local compressed_uuid=$1
+# 	local input_alphabet='0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ' #62
+# 	local -i input_base=${#input_alphabet}
+# 	local expanded_uuid
+# 	expanded_uuid=$(base_convert "$compressed_uuid" $input_base 16)
+# 	printf -v expanded_uuid '%32s' "$expanded_uuid"
+# 	expanded_uuid=${expanded_uuid// /0}
+# 	printf '%8s-%4s-%4s-%4s-%12s' "${expanded_uuid:0:8}" "${expanded_uuid:8:4}" "${expanded_uuid:12:4}" "${expanded_uuid:16:4}" "${expanded_uuid:20:12}"
+# }
+
+# base_convert() {
+# 	local val=$1
+# 	local -i input_base=${2:-10}
+# 	local -i output_base=${3:-16}
+# 	local input_alphabet=${4:-'0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ'}
+# 	local output_alphabet=${5:-'0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ'}
+# 	local -A input_alphabet_map
+# 	local -i i
+# 	for (( i = 0; i < input_base; ++i )); do
+# 		input_alphabet_map[${input_alphabet:i:1}]=$i
+# 	done
+
+# 	local -ai val_arr
+# 	for (( i = 0; i < ${#val}; ++i )); do
+# 		val_arr[i]=${input_alphabet_map[${val:i:1}]}
+# 	done
+
+# 	local -i val_count=${#val_arr[@]}
+# 	local output_val=''
+# 	while # "do while" in a bash pattern
+# 		local -i divide=0
+# 		local -i new_count=0
+# 		local -i i
+# 		for (( i = 0; i < val_count; ++i )); do
+# 			(( divide = divide * input_base + val_arr[i] ))
+# 			if (( divide >= output_base )); then
+# 				(( val_arr[new_count++] = divide / output_base ))
+# 				(( divide = divide % output_base ))
+# 			elif (( new_count > 0 )); then
+# 				(( val_arr[new_count++] = 0 ))
+# 			fi
+# 		done
+# 		(( val_count = new_count ))
+# 		output_val=${output_alphabet:divide:1}${output_val}
+# 		(( new_count != 0 ))
+# 	do :; done
+# 	printf '%s' "$output_val"
+# }
+
+# @local_prefix() {
+# 	local name=${1?missing function name}
+# 	local local_prefix=$2
+# 	local -i trunc=$3
+# 	local uuid
+# 	IFS= read -r -d '' uuid < '/proc/sys/kernel/random/uuid'
+# 	uuid=$(uuid_compress "$uuid")
+# 	if (( trunc > 0 && trunc < 23 )); then
+# 		uuid=${uuid:0:trunc}
+# 	fi
+# 	local body
+# 	local left_re='^(.*)\b' right_re='(\w+.*)$'
+
+# 	body=$(declare -f "$name" | {
+# 		local line
+# 		# shellcheck disable=SC2030
+# 		while read -r line; do
+# 			local pending_part=$line done_part=''
+# 			while [[ $pending_part =~ ${left_re}"$local_prefix"${right_re} ]]; do
+# 				pending_part=${BASH_REMATCH[1]}
+# 				done_part=_${uuid}_${BASH_REMATCH[2]}${done_part}
+# 				line=${pending_part}${done_part}
+# 			done
+# 			printf '%s\n' "$line"
+# 		done
+# 	})
+# 	eval "$body"
+# }
+
+@pragma() { return $?; }
+@region() { return $?; }
+@endregion() { return $?; }
+
+make_alphabet() {
+	@pragma local_prefix x_
+	local -n x_arr=$1
+	[[ ${x_arr@a} == *A* ]] || return 1 # TODO
+	local -i x_i x_len=${#2} x_digit=0
+	local x_char
+	for (( x_i = 0; x_i < x_len; ++x_i )); do
+		x_char=${2:x_i:1}
+		[[ -v x_arr[$x_char] ]] && continue
+		(( x_arr[$x_char] = x_digit++ ))
+		x_arr['alphabet']+=$x_char
+	done
+	declare -p x_arr
+}
+
+base_convert2() {
+	@pragma local_prefix my_
+	local my_input_val=$1
+	local -i my_input_base=$2
+	local -n my_input_alphabet=$3
+	local -i my_output_base=$4
+	local -n my_output_alphabet=$5
+	local -n my_ret=$6
+
+	local -ai my_val_arr
+	local -i my_i
+	for (( my_i = 0; my_i < ${#my_input_val}; ++my_i )); do
+		(( my_val_arr[my_i] = my_input_alphabet[${my_input_val:my_i:1}] ))
 	done
 
-	local -ai val_arr
-	for (( i = 0; i < ${#val}; ++i )); do
-		val_arr[i]=${input_alphabet_map[${val:i:1}]}
-	done
-
-	local -i val_count=${#val_arr[@]}
-	local output_val=''
+	local my_output_val
+	local -i my_val_count=${#my_val_arr[@]}
 	while # "do while" in a bash pattern
-		local -i divide=0
-		local -i new_count=0
-		local -i i
-		for (( i = 0; i < val_count; ++i )); do
-			(( divide = divide * input_base + val_arr[i] ))
-			if (( divide >= output_base )); then
-				(( val_arr[new_count++] = divide / output_base ))
-				(( divide = divide % output_base ))
-			elif (( new_count > 0 )); then
-				(( val_arr[new_count++] = 0 ))
+		local -i my_divide=0
+		local -i my_new_count=0
+		for (( my_i = 0; my_i < my_val_count; ++my_i )); do
+			(( my_divide = my_divide * my_input_base + my_val_arr[my_i] ))
+			if (( my_divide >= my_output_base )); then
+				(( my_val_arr[my_new_count++] = my_divide / my_output_base ))
+				(( my_divide = my_divide % my_output_base ))
+			elif (( my_new_count > 0 )); then
+				(( my_val_arr[my_new_count++] = 0 ))
 			fi
 		done
-		(( val_count = new_count ))
-		output_val=${output_alphabet:divide:1}${output_val}
-		(( new_count != 0 ))
+		(( my_val_count = my_new_count ))
+		my_output_val=${my_output_alphabet[alphabet]:my_divide:1}${my_output_val}
+		(( my_new_count != 0 ))
 	do :; done
-	printf '%s' "$output_val"
+	#shellcheck disable=SC2034
+	my_ret=$my_output_val
 }
+
+# shellcheck disable=SC2034
+declare -A alphabet_62
+make_alphabet alphabet_62 '0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ'
+
+
+get_unique_id() {
+	@pragma local_prefix x_
+	local -n x_ret=$1
+	local x_uuid
+	IFS= read -r -d '' x_uuid < '/proc/sys/kernel/random/uuid'
+	local x_val=${x_uuid//-/}
+	base_convert2 "$x_val" 16 alphabet_62 62 alphabet_62 x_val
+	# shellcheck disable=SC2034
+	x_ret=${x_val:0:8}
+}
+
+
+@pragma_local_prefix() {
+	local name=${1?missing function name}
+	local local_prefix=$2
+	[[ $local_prefix =~ ^[[:alnum:]_]+$ ]] || return 1
+	local uuid
+	get_unique_id uuid
+	local body
+	local left_re='^(.*)\b' right_re='(\w+.*)$'
+
+	body=$(declare -f "$name" | {
+		local line
+		# shellcheck disable=SC2030
+		while read -r line; do
+			local pending_part=$line done_part=''
+			while [[ $pending_part =~ ${left_re}"$local_prefix"${right_re} ]]; do
+				pending_part=${BASH_REMATCH[1]}
+				done_part=_${uuid}_${BASH_REMATCH[2]}${done_part}
+				line=${pending_part}${done_part}
+			done
+			printf '%s\n' "$line"
+		done
+	})
+	eval "$body"
+}
+
 
 @trace_function() {
 	local name=${1?missing function name}
 	local uuid
 	IFS= read -r -d '' uuid < '/proc/sys/kernel/random/uuid'
-	uuid=$(uuid_compress "$uuid")
+	get_unique_id uuid
 	local body
 	body=$(declare -f "$name" | {
 		local line
@@ -89,41 +233,13 @@ base_convert() {
 }
 
 
-@local_prefix() {
-	local name=${1?missing function name}
-	local local_prefix=$2
-	local -i trunc=$3
-	local uuid
-	IFS= read -r -d '' uuid < '/proc/sys/kernel/random/uuid'
-	uuid=$(uuid_compress "$uuid")
-	if (( trunc > 0 && trunc < 23 )); then
-		uuid=${uuid:0:trunc}
-	fi
-	local body
-	local left_re='^(.*)\b' right_re='(\w+.*)$'
 
-	body=$(declare -f "$name" | {
-		local line
-		# shellcheck disable=SC2030
-		while read -r line; do
-			local pending_part=$line done_part=''
-			while [[ $pending_part =~ ${left_re}"$local_prefix"${right_re} ]]; do
-				pending_part=${BASH_REMATCH[1]}
-				done_part=_${uuid}_${BASH_REMATCH[2]}${done_part}
-				line=${pending_part}${done_part}
-			done
-			printf '%s\n' "$line"
-		done
-	})
-	eval "$body"
-}
 
 apply_pragmas() {
 	local -r name=${1?missing function name}
 	local -r pragma_re='^\s*@pragma\s+(\w+)\s*(.*);$'
 	local line body
 	local -a pragmas=()
-
 	{
 		read -r line # function_name ()
 		body+="$line"$'\n'
@@ -150,13 +266,14 @@ apply_pragmas() {
 		if declare -fp "@pragma_${pragma%% *}" &> /dev/null; then
 			eval "@pragma_$pragma"
 		else
-			printf 'WARN: pragma %s not found\n' "${pragma%% *}" >&2
+			printf 'WARN: pragma %s not found in %s\n' "${pragma%% *}" "$name" >&2
 		fi
 	done
-
-	declare -fp "$name"
-	declare -p pragmas
 }
+
+apply_pragmas get_unique_id
+apply_pragmas make_alphabet
+apply_pragmas base_convert2
 
 
 apply_regions() {
@@ -202,9 +319,6 @@ apply_regions() {
 }
 
 
-@pragma() { return $?; }
-@region() { return $?; }
-@endregion() { return $?; }
 
 @pragma_aaa() {
 	for i in "$@"; do
@@ -212,168 +326,38 @@ apply_regions() {
 	done
 }
 
-@pragma_local_prefix() {
-	local name=${1?missing function name}
-	local local_prefix=$2
-	local -i trunc=$3
-	local uuid
-	IFS= read -r -d '' uuid < '/proc/sys/kernel/random/uuid'
-	uuid=$(uuid_compress "$uuid")
-	if (( trunc > 0 && trunc < 23 )); then
-		uuid=${uuid:0:trunc}
-	fi
-	local body
-	local left_re='^(.*)\b' right_re='(\w+.*)$'
+# @pragma_local_prefix() {
+# 	local name=${1?missing function name}
+# 	local local_prefix=$2
+# 	local -i trunc=$3
+# 	local uuid
+# 	IFS= read -r -d '' uuid < '/proc/sys/kernel/random/uuid'
+# 	uuid=$(uuid_compress "$uuid")
+# 	if (( trunc > 0 && trunc < 23 )); then
+# 		uuid=${uuid:0:trunc}
+# 	fi
+# 	local body
+# 	local left_re='^(.*)\b' right_re='(\w+.*)$'
 
-	body=$(declare -f "$name" | {
-		local line
-		# shellcheck disable=SC2030
-		while read -r line; do
-			local pending_part=$line done_part=''
-			while [[ $pending_part =~ ${left_re}"$local_prefix"${right_re} ]]; do
-				pending_part=${BASH_REMATCH[1]}
-				done_part=_${uuid}_${BASH_REMATCH[2]}${done_part}
-				line=${pending_part}${done_part}
-			done
-			printf '%s\n' "$line"
-		done
-	})
-	eval "$body"
-}
+# 	body=$(declare -f "$name" | {
+# 		local line
+# 		# shellcheck disable=SC2030
+# 		while read -r line; do
+# 			local pending_part=$line done_part=''
+# 			while [[ $pending_part =~ ${left_re}"$local_prefix"${right_re} ]]; do
+# 				pending_part=${BASH_REMATCH[1]}
+# 				done_part=_${uuid}_${BASH_REMATCH[2]}${done_part}
+# 				line=${pending_part}${done_part}
+# 			done
+# 			printf '%s\n' "$line"
+# 		done
+# 	})
+# 	eval "$body"
+# }
 
 
 
-__libimport_filter_function_code() {
-	local ns=$1
-	local line token
-	local IFS=$' \t\n'
-	local global_prefix='__N''S__'
-	local local_prefix=''
-	local uuid=''
-	local pragma_re='^\s*pragma\s+(\w+)\s*(.*);$'
-	local prefix_re1='^(.*\b)' prefix_re2='(\w+.*)$'
-	local pragma_begin_re='^\s*pragma\s+begin\s+([_[:alnum:]]+)\s*(.*);$'
-	local pragma_end_re='^\s*pragma\s+end\s*(.*);$'
-	local -a token_list
-	local -Ai strip_pragma_set=()
-	local pragma
-	if [[ -n $STRIP_PRAGMA ]]; then
-		# shellcheck disable=SC2086
-		local -a strip_pragma_list=()
-		IFS=$' \t\n,:' read -r -d '' -a strip_pragma_list <<< "$STRIP_PRAGMA"
-		for pragma in "${strip_pragma_list[@]}"; do
-			strip_pragma_set[$pragma]=1
-		done
-		#region Expand directives
-		while (( ${#strip_pragma_list[@]} > 0 )); do
-			pragma=${strip_pragma_list[0]} && strip_pragma_list=( "${strip_pragma_list[@]:1}" ) # pop from head
-			if [[ $pragma == 'loglevel='* ]]; then
-				local loglevel=${pragma#loglevel=}
-				loglevel=${loglevel,,}
-				case $loglevel in
-					off|0)   ;&
-					fatal|1) strip_pragma_set['loglevel=error']=1; strip_pragma_set['loglevel=2']=1 ;&
-					error|2) strip_pragma_set['loglevel=warn']=1 ; strip_pragma_set['loglevel=3']=1 ;&
-					warn|3)  strip_pragma_set['loglevel=info']=1 ; strip_pragma_set['loglevel=4']=1 ;&
-					info|4)  strip_pragma_set['loglevel=debug']=1; strip_pragma_set['loglevel=5']=1 ;&
-					debug|5) strip_pragma_set['loglevel=trace']=1; strip_pragma_set['loglevel=6']=1 ;&
-					trace|6) ;;
-				esac
-			fi
-		done
-		#endregion Expand directives
-	fi
-	local body=''
-	local -i state=0
-	while read -r line; do
-		case $state in
-		0) # no stripping
-			if [[ $line =~ $pragma_begin_re ]]; then
-				pragma=${BASH_REMATCH[1]}
-				if [[ ${strip_pragma_set[$pragma]} == 1 ]]; then
-					(( ++level ))
-					state=1 && continue
-				fi
-			elif [[ $line =~ $pragma_re ]]; then
-				read -r -d '' -a token_list <<<"${BASH_REMATCH[2]}"
-				case ${BASH_REMATCH[1]} in
-					local_prefix)
-						if (( ${#token_list[@]} > 0 )); then
-							local_prefix=${token_list[0]}
-							if [[ -z $uuid ]]; then
-								IFS= read -r -d '' uuid < '/proc/sys/kernel/random/uuid'
-								retvar=uuid uuid_compress "$uuid"
-							fi
-						else
-							local_prefix=''
-						fi
-						continue
-						;;
-					# TODO: filter local pragmas
-					logdomain)
-						local module=${__libimport_module_path##*/}
-						module=${module%.*}
-						local funcname=${__libimport_item/#$global_prefix/$ns}
-						body+="local LOGDOMAIN=\"${funcname}\""$'\n'
-						continue
-						;;
 
-				esac
-				continue
-			fi
-			#region Replace namespace prefixes
-			# Replace local namespace
-			if [[ -n $local_prefix ]]; then
-				local undone_part=$line done_part=''
-				# Avoiding infinite loop by looking for a match only in the previously unmatched part
-				# Because of the greedy operator *, the unmatched part is on the left (match group 2)
-				while [[ $undone_part =~ ${prefix_re1}"$local_prefix"${prefix_re2} ]]; do
-					undone_part=${BASH_REMATCH[1]}
-					done_part=__${uuid}_${BASH_REMATCH[2]}${done_part}
-					line=${undone_part}${done_part}
-				done
-			fi
-
-			# Replace global namespace
-			if [[ $global_prefix != "$ns" ]]; then
-				local undone_part=$line done_part=''
-				# Avoiding infinite loop by looking for a match only in the previously unmatched part
-				# Because of the greedy operator *, the unmatched part is on the left (match group 2)
-				while [[ $undone_part =~ ${prefix_re1}"$global_prefix"${prefix_re2} ]]; do
-					undone_part=${BASH_REMATCH[1]}
-					done_part=${ns}${BASH_REMATCH[2]}${done_part}
-					line=${undone_part}${done_part}
-				done
-			fi
-			#endregion Replace namespace prefixes
-
-			body+=${line}$'\n'
-			;;
-		1) # stripping
-			if [[ $line =~ $pragma_begin_re ]]; then
-				(( ++level ))
-			elif [[ $line =~ $pragma_end_re ]]; then
-				(( --level ))
-				if (( level == 0 )); then
-					state=0 && continue
-				fi
-				if (( level < 0 )); then
-					return 1
-				fi
-			fi
-			;;
-		esac
-	done
-
-	printdebug 'Function body before returning: %s' "$body"
-	local "$retvar" && retvar "$body"
-}
-
-join() {
-	: "${1?Missing separator}" "${2?Missing input array var}" "${3?Missing output var}"
-	local IFS=$1
-	eval "$3=\${$2[*]}"
-}
 
 myfun() {
 	local local_var=" \" ;? aa"
@@ -414,7 +398,7 @@ myfun_decorator() {
 		x_c[$x_key]=${x_lc[$x_key]}
 	done
 }
-@local_prefix myfun_decorator x_ 8
+@pragma_local_prefix myfun_decorator x_
 @trace_function myfun_decorator
 
 myfun_pragma() {
@@ -485,19 +469,23 @@ true && {
 }
 
 
-declare o_uuid s_uuid e_uuid
-IFS= read -r o_uuid < '/proc/sys/kernel/random/uuid'
+# declare o_uuid s_uuid e_uuid
+# IFS= read -r o_uuid < '/proc/sys/kernel/random/uuid'
+# s_uuid=$(uuid_compress "$o_uuid")
+# e_uuid=$(uuid_expand "$s_uuid")
+# declare -p o_uuid s_uuid e_uuid
 
-s_uuid=$(uuid_compress "$o_uuid")
-e_uuid=$(uuid_expand "$s_uuid")
-
-declare -p o_uuid s_uuid e_uuid
-
-declare in out out2
-in='1232dd45343abacddfe'
-out=$(base_convert '1232dd45343abacddfe' 16 10)
-out2=$(base_convert $out 10 16)
-declare -p in out out2
+# declare in out out2
+# in='1232dd45343abacddfe'
+# out=$(base_convert '1232dd45343abacddfe' 16 10)
+# out2=$(base_convert $out 10 16)
+# declare -p in out out2
 
 
-join / a
+declare uuid
+get_unique_id uuid
+declare -p uuid
+
+declare val
+base_convert2 "f" 16 alphabet_62 62 alphabet_62 val
+declare -p val
