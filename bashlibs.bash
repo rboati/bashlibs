@@ -10,11 +10,32 @@ if [[ -z ${BASH_LIBRARY_PATH-} ]]; then
 fi
 
 # For original concept see https://www.fvue.nl/wiki/Bash:_Passing_variables_by_reference
-# upvar: {varname} {value}
-upvar() {
-	if unset -v "${1:?}"; then
-		eval "$1=${2@Q}"
-	fi
+# Usage: local $retvar && retvar {value}
+retvar() {
+	# shellcheck disable=SC2154
+	unset -v "$retvar" &> /dev/null || { printerr 'Missing or invalid retvar\n'; return 1; }
+	[[ -R $retvar ]] && { printerr 'Return var %s cannot be a reference\n' "$retvar"; return 2; }
+	printf -v "$retvar" -- '%s' "$1"
+}
+
+# Usage: local $retvar && retvar_array {value1} {Value2} ...
+# Usage: local $retvar && retvar_array "${my_array[@]}"
+retvar_array() {
+	# shellcheck disable=SC2154
+	unset -v "$retvar" &> /dev/null || { printerr 'Missing or invalid retvar\n'; return 1; }
+	[[ -R $retvar ]] && { printerr 'Return var %s cannot be a reference\n' "$retvar"; return 2; }
+	eval "[[ \${$retvar@a} == *A* ]]" && { printerr 'Return var %s cannot be an associative array\n' "$retvar"; return 3; }
+	eval "$retvar=( ${*@Q} )"
+}
+
+# Usage: local $retvar && retvar_assoc {key1} {value1} {key2} {value2} ...
+# Usage: local $retvar && retvar_assoc "${my_assoc[@]@k}"
+retvar_assoc() {
+	# shellcheck disable=SC2154
+	unset -v "$retvar" &> /dev/null || { printerr 'Missing or invalid retvar\n'; return 1; }
+	[[ -R $retvar ]] && { printerr 'Return var %s cannot be a reference\n' "$retvar"; return 2; }
+	eval "[[ \${$retvar@a} != *A* ]]" && { printerr 'Return var %s is not an associative array\n' "$retvar"; return 4; }
+	eval "$retvar=( ${*@Q} )"
 }
 
 uuid_compress() {
@@ -47,7 +68,7 @@ uuid_compress() {
 		compressed_uuid=${output_alphabet:divide:1}${compressed_uuid}
 		(( new_count != 0 ))
 	do :; done
-	local "${retvar:?}" && upvar "$retvar" "$compressed_uuid"
+	local "$retvar" && retvar "$compressed_uuid"
 }
 
 
@@ -175,7 +196,7 @@ __libimport_filter_function_code() {
 	done
 
 	printdebug 'Function body before returning: %s' "$body"
-	local "${retvar:?}" && upvar "$retvar" "$body"
+	local "$retvar" && retvar "$body"
 }
 
 
