@@ -369,8 +369,11 @@ __libimport_filter_function_code() {
 	local "$retvar" && retvar "$body"
 }
 
-
-
+join() {
+	: "${1?Missing separator}" "${2?Missing input array var}" "${3?Missing output var}"
+	local IFS=$1
+	eval "$3=\${$2[*]}"
+}
 
 myfun() {
 	local local_var=" \" ;? aa"
@@ -495,3 +498,6 @@ in='1232dd45343abacddfe'
 out=$(base_convert '1232dd45343abacddfe' 16 10)
 out2=$(base_convert $out 10 16)
 declare -p in out out2
+
+
+join / a
